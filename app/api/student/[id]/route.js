@@ -25,9 +25,9 @@ export async function PUT(request, { params }) {
     console.log("Connected to MongoDB");
 
     const { studentID } = await params;
-    const { Studentname,branchId,departmentId } = await request.json();
+    const { name,branchId,departmentId } = await request.json();
     const updated  = await Student.findByIdAndUpdate(
-        studentID, { Studentname,branchId, departmentId },{new : true}).lean();
+        studentID, { name,branchId, departmentId },{new : true}).lean();
 
     if (!updated ) {
         return NextResponse.json({ message: 'Student not found' }, { status: 404 });
