@@ -9,7 +9,7 @@ const schemaOptions = {
 const StudentSchema = new Schema(
     {
         studentCode: { type: String, required: true, unique: true, index: true },
-        name: { type: String, required: true },
+        Studentname: { type: String, required: true },
 
         userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
 
