@@ -1,5 +1,6 @@
 import mongoConnect from "@/lib/mongodb";
-import User from "@/Models/User";
+import { User } from "@/Models";
+
 import { hashPassword } from "@/tools/hashpassword";
 import { NextResponse } from "next/server";
 

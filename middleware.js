@@ -1,28 +1,32 @@
 // middleware.js
 import { NextResponse } from 'next/server';
-import { verifyAccessToken } from './lib/jwt';
-import { COOKIE } from './lib/cookies';
+import { COOKIE } from '@/lib/cookie';
+import { jwtVerify } from 'jose';
 
-const PROTECTED_PATHS = ['/dashboard', '/profile']; // ใส่เพจที่ต้องล็อกอิน
+const PROTECTED_PATHS = ['/dashboard', '/profile'];
+const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET);
 
-export function middleware(req) {
+// verify บน Edge
+async function verifyOnEdge(token) {
+  await jwtVerify(token, secret); // โยน error ถ้า invalid/expired
+}
+
+export async function middleware(req) {
   const { pathname } = req.nextUrl;
-  const isProtected = PROTECTED_PATHS.some(p => pathname.startsWith(p));
+  const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
   if (!isProtected) return NextResponse.next();
 
   const token = req.cookies.get(COOKIE.ACCESS)?.value;
   if (!token) {
-    const loginUrl = new URL('/login', req.url);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/login', req.url));
   }
 
   try {
-    verifyAccessToken(token);
+    await verifyOnEdge(token);
     return NextResponse.next();
   } catch {
-    // access หมดอายุ → (ตัวเลือก) ให้ client เรียก /api/auth/refresh ก่อน แล้วรีโหลด
-    const loginUrl = new URL('/login', req.url);
-    return NextResponse.redirect(loginUrl);
+    // แนะนำ: อาจเปลี่ยนไปเพจ /refresh เพื่อต่ออายุ แล้วค่อยกลับ
+    return NextResponse.redirect(new URL('/login', req.url));
   }
 }
 

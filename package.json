@@ -9,7 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@iconify/json": "^2.2.398",
+    "@iconify/tailwind4": "^1.0.6",
     "bcryptjs": "^3.0.2",
+    "flyonui": "^2.4.1",
+    "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
     "next": "15.5.5",

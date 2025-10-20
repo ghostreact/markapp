@@ -1,6 +1,16 @@
 @import "tailwindcss";
+@plugin "flyonui";
+@import "flyonui/variants.css";
+@source "./node_modules/flyonui/flyonui.js"; 
+@source "./node_modules/flyonui/dist/accordion.js";
+@plugin "@iconify/tailwind4";
 
-:root {
+@plugin "flyonui"{
+  themes: light --default, vscode --prefersdark;
+};
+
+
+/* :root {
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -23,4 +33,4 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-}
+} */

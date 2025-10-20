@@ -1,2 +1,18 @@
 AUTH_SECRET="R7+QYSLjhtTXuvTEGVzkMyM/oS/Ckd2YDXIVM8b3+T8=" # Added by `npx auth`. Read more: https://cli.authjs.dev
 MONGO_URL="mongodb+srv://diecity500_db_user:u0njzqfJEGUFHQ7o@cluster0.lesb6pw.mongodb.net/markapp?retryWrites=true&w=majority&appName=Cluster0"
+
+
+JWT_ACCESS_SECRET="R7+QYSLjhtTXuvTEGVzkMyM/oS/Ckd2YDXIVM8b3+T8="
+JWT_REFRESH_SECRET="refreshtokentest"
+ACCESS_TOKEN_EXPIRES=15m
+REFRESH_TOKEN_EXPIRES=30d
+
+# ทำ index เฉพาะตอนตั้งค่า
+MONGODB_SYNC_INDEXES=false
+
+# seed ตอนบูต (เปิดเฉพาะตอนเริ่มระบบ/ทดสอบ)
+SEED_ON_BOOT=true
+
+ลำดับขั้นตอนการใช้งาน api 
+1. รอ seeding admin to Database
+2. สร้าง Teacher ใน /api

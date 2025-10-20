@@ -1,6 +1,7 @@
 export const Role = {
     Student: 'Student',
     Teacher: 'Teacher',
+    Admin: 'Admin',
 }
 
 export const AttendanceStatus = {

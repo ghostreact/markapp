@@ -1,6 +1,8 @@
 // app/api/auth/logout/route.js
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
-import { COOKIE, cookieOptions } from '@/lib/cookies';
+import { COOKIE, cookieOptions } from '@/lib/cookie';
 import bcrypt from 'bcryptjs';
 import mongoConnect from '@/lib/mongodb';
 import { Session } from '@/Models';

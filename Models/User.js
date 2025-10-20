@@ -10,11 +10,11 @@ const schemaOptions = {
 const UserSchema = new Schema({
     username: { type: String, required: true, unique: true, index: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['Student', 'Teacher'], default: 'Student', required: true },
+    role: { type: String, enum: ['Student', 'Teacher','Admin'], default: 'Student', required: true },
 }, schemaOptions);
 
 // virtual 1–1: User → Student
-UserSchema.virtual('studentProfile',{
+UserSchema.virtual('studentProfile', {
     ref: 'Student',
     localField: '_id',
     foreignField: 'userId',
@@ -23,10 +23,10 @@ UserSchema.virtual('studentProfile',{
 
 // virtual 1–1: User → Teacher
 UserSchema.virtual('teacherProfile', {
-  ref: 'Teacher',
-  localField: '_id',
-  foreignField: 'userId',
-  justOne: true,
+    ref: 'Teacher',
+    localField: '_id',
+    foreignField: 'userId',
+    justOne: true,
 });
 
 export const User = models.User || model('User', UserSchema);
