@@ -6,7 +6,7 @@ const menuByRole = {
         { href: '/dashboard/users', label: 'Manage Users', icon: '👥' },
         { href: '/dashboard/department', label: 'Departments', icon: '🏛️' },
         { href: '/dashboard/branch', label: 'Branches', icon: '🌿' },
-        { href: '/dashboard/reports', label: 'Reports', icon: '📊' },
+        // { href: '/dashboard/reports', label: 'Reports', icon: '📊' },
     ],
     teacher: [
         { href: '/dashboard', label: 'Overview', icon: '🏠' },

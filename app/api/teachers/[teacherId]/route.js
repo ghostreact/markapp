@@ -2,6 +2,7 @@ import mongoConnect from '@/lib/mongodb';
 import { User, Student, Teacher } from '@/Models';   // ต้องแก้ index.js ตามด้านบน
 import { hashPassword } from '@/tools/hashpassword';
 import { NextResponse } from 'next/server';
+import { isValidObjectId } from 'mongoose';
 
 // ✅ GET: ดึงนักเรียนทั้งหมดของครู (อิง department ของครู ตาม schema ปัจจุบัน)
 export async function GET(request, { params }) {
@@ -100,6 +101,31 @@ export async function POST(request, { params }) {
             return NextResponse.json({ message: 'Duplicate key', details: err.keyValue }, { status: 400 });
         }
         console.error('POST /teachers/:teacherId/students error:', err);
+        return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    }
+}
+
+export async function DELETE(request, { params }) {
+    await mongoConnect();
+
+    const { teacherId } = await params;            // <-- ใช้ชื่อให้ตรงกับ [teacherId]
+    if (!isValidObjectId(teacherId)) {
+        return NextResponse.json({ message: 'Invalid teacherId' }, { status: 400 });
+    }
+
+    try {
+        // (ตัวเลือก) ถ้าต้องการลบ User ไปด้วย ให้หา teacher ก่อน
+        const teacher = await Teacher.findByIdAndDelete(teacherId);
+        if (!teacher) {
+            return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
+        }
+
+        // (ตัวเลือก) ลบ user ของครูด้วย ถ้าต้องการ
+        // await User.findByIdAndDelete(teacher.userId);
+
+        return NextResponse.json({ ok: true, message: 'Teacher deleted successfully' });
+    } catch (err) {
+        console.error('DELETE /api/teachers/:teacherId error:', err);
         return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
     }
 }

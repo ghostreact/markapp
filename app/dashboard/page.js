@@ -72,7 +72,6 @@ function RoleContent({ role }) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Users</h2><p>Total users, teachers, students…</p></div></div>
                     <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Departments</h2><p>Manage departments/branches</p></div></div>
-                    <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Reports</h2><p>Attendance reports & exports</p></div></div>
                 </div>
             </section>
         );
