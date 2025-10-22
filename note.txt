@@ -10,11 +10,12 @@ REFRESH_TOKEN_EXPIRES=30d
 # ทำ index เฉพาะตอนตั้งค่า
 MONGODB_SYNC_INDEXES=false
 
-ADMIN_USERNAME="RootAdmin"
-ADMIN_PASSWORD="rootadmin12345"
-
 # seed ตอนบูต (เปิดเฉพาะตอนเริ่มระบบ/ทดสอบ)
 SEED_ON_BOOT=true
+
+
+ADMIN_USERNAME="rootadmin"
+ADMIN_PASSWORD="rootadmin12345"
 
 ลำดับขั้นตอนการใช้งาน api 
 1. รอ seeding admin to Database

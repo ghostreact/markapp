@@ -5,6 +5,64 @@ import { Teacher, Student, User, Branch } from '@/Models';
 import { NextResponse } from 'next/server';
 import { hashPassword } from '@/tools/hashpassword';
 
+export async function GET(request, { params }) {
+  await mongoConnect();
+
+  try {
+    const { teacherId } = await params;
+    const url = new URL(request.url);
+    const branchIdParam = url.searchParams.get('branchId');
+
+    let teacher = null;
+
+    if (isValidObjectId(teacherId)) {
+      teacher = await Teacher.findById(teacherId).lean();
+    }
+
+    if (!teacher && isValidObjectId(teacherId)) {
+      teacher = await Teacher.findOne({ userId: teacherId }).lean();
+    }
+
+    if (!teacher) {
+      return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
+    }
+
+    if (!teacher.departmentId) {
+      return NextResponse.json({ count: 0, data: [] }, { status: 200 });
+    }
+
+    const query = { departmentId: teacher.departmentId };
+
+    if (branchIdParam) {
+      if (!isValidObjectId(branchIdParam)) {
+        return NextResponse.json({ message: 'Invalid branchId' }, { status: 400 });
+      }
+
+      const branch = await Branch.findById(branchIdParam).lean();
+      if (!branch) {
+        return NextResponse.json({ message: 'Branch not found' }, { status: 404 });
+      }
+
+      if (branch.departmentId && String(branch.departmentId) !== String(teacher.departmentId)) {
+        return NextResponse.json({ message: 'Branch does not belong to department' }, { status: 400 });
+      }
+
+      query.branchId = branch._id;
+    }
+
+    const students = await Student.find(query)
+      .populate('userId', 'username role')
+      .populate('departmentId', 'name')
+      .populate('branchId', 'name')
+      .lean();
+
+    return NextResponse.json({ count: students.length, data: students }, { status: 200 });
+  } catch (error) {
+    console.error('GET /teachers/:teacherId/students error:', error);
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 export async function POST(request, { params }) {
   await mongoConnect();
 

@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function AttendanceHistoryPage() {
-  const [me, setMe] = useState(null);           // { id, role, ... }
+  const [me, setMe] = useState(null);           // { id, role, teacherId, ... }
+  const [teacherId, setTeacherId] = useState('');
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState('');
   const [range, setRange] = useState(() => {
@@ -24,20 +25,48 @@ export default function AttendanceHistoryPage() {
       ]);
       const meData = await meRes.json().catch(()=>({}));
       const bData  = await bRes.json().catch(()=>({}));
-      setMe(meData?.user || null);
+      const user = meData?.user || null;
+      setMe(user);
+
+      const teacherRef =
+        user?.teacherId ||
+        user?.teacher?._id ||
+        user?.teacher ||
+        (user?.role === 'Teacher' ? user?.id : '');
+
+      if (teacherRef) setTeacherId(String(teacherRef));
+
       const bs = bData?.branches || bData?.data || [];
       setBranches(bs);
-      if (!branchId && bs[0]?._id) setBranchId(bs[0]._id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const filteredBranches = useMemo(() => {
+    const departmentId =
+      me?.teacher?.departmentId?._id ||
+      me?.teacher?.departmentId ||
+      me?.departmentId ||
+      '';
+
+    if (!departmentId) return branches;
+    return branches.filter(
+      b => String(b?.departmentId?._id || b?.departmentId) === String(departmentId)
+    );
+  }, [branches, me]);
+
+  useEffect(() => {
+    if (!branchId && filteredBranches[0]?._id) {
+      setBranchId(filteredBranches[0]._id);
+    }
+  }, [branchId, filteredBranches]);
+
   async function search() {
-    if (!me?.id) return;
+    if (!teacherId) return;
     setLoading(true);
     const qs = new URLSearchParams({ from: range.from, to: range.to });
     if (branchId) qs.set('branchId', branchId);
-    const res = await fetch(`/api/teachers/${me.id}/attendance?` + qs.toString(), { cache: 'no-store' });
+    const res = await fetch(`/api/teachers/${teacherId}/attendance?` + qs.toString(), { cache: 'no-store' });
     const data = await res.json().catch(()=>({}));
     setRows(data?.data || []);
     setLoading(false);
@@ -55,7 +84,7 @@ export default function AttendanceHistoryPage() {
                    onChange={e=>setRange(r=>({...r, to:e.target.value}))}/>
             <select className="select select-bordered" value={branchId} onChange={e=>setBranchId(e.target.value)}>
               <option value="">All branches</option>
-              {branches.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+              {filteredBranches.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
             </select>
             <button className="btn btn-primary" onClick={search}>Search</button>
           </div>

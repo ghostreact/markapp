@@ -1,102 +1,148 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useDashboard } from '../components/dashboard/DashboardContext';
 
+const contentByRole = {
+    admin: {
+        heading: 'Admin Overview',
+        gridClass: 'lg:grid-cols-3 md:grid-cols-2',
+        cards: [
+            {
+                title: 'Manage Users',
+                description: 'Invite, update, or deactivate users across the system.',
+                href: '/dashboard/users',
+                actionText: 'Manage',
+            },
+            {
+                title: 'Departments',
+                description: 'Review or edit the departments that belong to your organisation.',
+                href: '/dashboard/department',
+                actionText: 'Open',
+            },
+            {
+                title: 'Branches',
+                description: 'Keep branch information up to date for scheduling and reporting.',
+                href: '/dashboard/branch',
+                actionText: 'Open',
+            },
+        ],
+    },
+    teacher: {
+        heading: 'Teacher Overview',
+        gridClass: 'md:grid-cols-2',
+        cards: [
+            {
+                title: 'Take Attendance',
+                description: 'Record attendance for today’s class in one place.',
+                href: '/dashboard/attendance',
+                actionText: 'Open',
+            },
+            {
+                title: 'Student List',
+                description: 'View and manage the students in your department.',
+                href: '/dashboard/students',
+                actionText: 'Manage',
+            },
+            {
+                title: 'Attendance History',
+                description: 'Review past attendance submissions for quick audits.',
+                href: '/dashboard/attendance/history',
+                actionText: 'Review',
+                variant: 'outline',
+            },
+        ],
+    },
+    student: {
+        heading: 'Student Overview',
+        gridClass: 'md:grid-cols-2',
+        cards: [
+            {
+                title: 'My Attendance',
+                description: 'Check your attendance record and keep track of every day.',
+                href: '/dashboard/my-attendance',
+                actionText: 'View',
+            },
+            {
+                title: 'My Courses',
+                description: 'See course information and schedules in one place.',
+                href: '/dashboard/my-courses',
+                actionText: 'Open',
+                variant: 'outline',
+            },
+            {
+                title: 'Profile',
+                description: 'Update your contact details and password.',
+                href: '/profile',
+                actionText: 'Edit',
+            },
+        ],
+    },
+};
 
-
-import Sidebar from '../components/dashboard/Sidebar';
-import Navbar from '../components/dashboard/Navbar';
-import Footer from '../components/dashboard/Footer';
-
-
-export default function DashboardPage() {
-    const router = useRouter();
-    const [user, setUser] = useState(null);   // { id, role }
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        let ignore = false;
-        (async () => {
-            try {
-                const res = await fetch('/api/auth/me', { credentials: 'include' });
-                if (!res.ok) throw new Error('unauthorized');
-                const data = await res.json();
-                if (!ignore) setUser(data.user);
-            } catch {
-                router.replace('/login');
-            } finally {
-                if (!ignore) setLoading(false);
-            }
-        })();
-        return () => { ignore = true; };
-    }, [router]);
-
-    async function handleLogout() {
-        try {
-            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-        } finally {
-            router.replace('/login');
-        }
-    }
-
-    if (loading) {
-        return (
-            <div className="min-h-screen grid place-items-center">
-                <span className="loading loading-spinner loading-lg" />
-            </div>
-        );
-    }
+function QuickLinkCard({ title, description, href, actionText, variant = 'primary' }) {
+    const buttonClass =
+        variant === 'outline'
+            ? 'btn btn-outline btn-sm'
+            : 'btn btn-primary btn-sm';
 
     return (
-        <>
-            <Navbar user={user} onLogout={handleLogout} />
-            <div className="flex flex-1">
-                <Sidebar user={user} />
-                <main className="flex-1 p-4 md:p-6">
-                    <RoleContent role={user?.role} />
-                </main>
+        <div className="card h-full bg-base-100 shadow-sm transition hover:shadow-md">
+            <div className="card-body">
+                <h2 className="card-title text-lg">{title}</h2>
+                <p className="text-sm leading-relaxed text-base-content/70">{description}</p>
+                <div className="pt-4">
+                    <Link href={href} className={buttonClass}>
+                        {actionText}
+                    </Link>
+                </div>
             </div>
-            <Footer />
-        </>
+        </div>
     );
 }
 
-/** คอนเทนต์ตัวอย่างแยกตาม role */
 function RoleContent({ role }) {
-    const roleKey = String(role || '').toLowerCase();
-    if (roleKey === 'admin') {
-        return (
-            <section className="space-y-4">
-                <h1 className="text-2xl font-bold">Admin Overview</h1>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Users</h2><p>Total users, teachers, students…</p></div></div>
-                    <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Departments</h2><p>Manage departments/branches</p></div></div>
-                </div>
-            </section>
-        );
-    }
+    const key = String(role || '').toLowerCase();
+    const config = contentByRole[key] ?? contentByRole.student;
+    const gridClass = ['grid', 'grid-cols-1', 'gap-6', config.gridClass]
+        .filter(Boolean)
+        .join(' ');
 
-    if (roleKey === 'teacher') {
-        return (
-            <section className="space-y-4">
-                <h1 className="text-2xl font-bold">Teacher Overview</h1>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Today’s Attendance</h2><p>Quick check-in for classes</p><a href="/dashboard/attendance" className="btn btn-primary">Open</a></div></div>
-                    <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">Students</h2><p>View and manage students in your department</p><a href="/dashboard/students" className="btn btn-outline">Manage</a></div></div>
-                </div>
-            </section>
-        );
-    }
-
-    // student (default)
     return (
-        <section className="space-y-4">
-            <h1 className="text-2xl font-bold">Student Overview</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">My Attendance</h2><p>See your history</p><a href="/dashboard/my-attendance" className="btn btn-primary">View</a></div></div>
-                <div className="card bg-base-100 shadow"><div className="card-body"><h2 className="card-title">My Courses</h2><p>Courses and schedule</p><a href="/dashboard/my-courses" className="btn btn-outline">Open</a></div></div>
+        <section className="space-y-6">
+            <div>
+                <h1 className="text-3xl font-semibold tracking-tight text-base-content">
+                    {config.heading}
+                </h1>
+                <p className="mt-2 text-sm text-base-content/70">
+                    Choose a section below to jump straight into your most common tasks.
+                </p>
+            </div>
+            <div className={gridClass}>
+                {config.cards.map((card) => (
+                    <QuickLinkCard key={card.href} {...card} />
+                ))}
             </div>
         </section>
+    );
+}
+
+export default function DashboardPage() {
+    const { user, loading } = useDashboard();
+
+    if (loading && !user) {
+        return (
+            <div className="p-8">
+                <div className="grid place-items-center">
+                    <span className="loading loading-spinner loading-lg text-primary" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+            <RoleContent role={user?.role} />
+        </div>
     );
 }
