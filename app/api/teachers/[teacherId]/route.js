@@ -121,7 +121,10 @@ export async function DELETE(request, { params }) {
         }
 
         // (ตัวเลือก) ลบ user ของครูด้วย ถ้าต้องการ
-        // await User.findByIdAndDelete(teacher.userId);
+        if (teacher.userId){
+           await User.findByIdAndDelete(teacher.userId); 
+        }
+         
 
         return NextResponse.json({ ok: true, message: 'Teacher deleted successfully' });
     } catch (err) {

@@ -3,7 +3,7 @@ import { isValidObjectId } from "mongoose";
 
 import { hashPassword } from "@/tools/hashpassword";
 import { NextResponse } from "next/server";
-import { Branch, Department, Teacher } from "@/Models";
+import { Branch, Department, Teacher, User } from "@/Models";
 
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
         const teachers = await Teacher.find()
             .populate({ path: 'userId', select: 'username role' })
             .populate('departmentId', 'name')
-            .populate('branchId', 'name')
+           // .populate('branchId', 'name')
             .lean();
 
         return NextResponse.json({ count: teachers.length, data: teachers }, { status: 200 });
@@ -91,7 +91,7 @@ export async function POST(request) {
         const safe = await Teacher.findById(teacher._id)
             .populate({ path: 'userId', select: 'username role createdAt' }) // createdAt (ไม่ใช่ createAt)
             .populate('departmentId', 'name')
-            .populate('branchId', 'name')
+           // .populate('branchId', 'name')
             .lean();
 
         return NextResponse.json({ teacher: safe }, { status: 201 });

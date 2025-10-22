@@ -1,6 +1,41 @@
-import mongoConnect from "@/lib/mongodb";
-import { Student } from "@/Models";
-import { NextResponse } from "next/server";
+import mongoConnect from '@/lib/mongodb';
+import { NextResponse } from 'next/server';
+import { isValidObjectId } from 'mongoose';
+import { Student, User, Attendance } from '@/Models';
+
+export async function DELETE(_req, { params }) {
+  await mongoConnect();
+
+  const { id } = await params;            
+  if (!isValidObjectId(id)) {
+    return NextResponse.json({ message: 'Invalid student id' }, { status: 400 });
+  }
+
+  try {
+    // หา student ก่อน
+    const student = await Student.findById(id);
+    if (!student) {
+      return NextResponse.json({ message: 'Student not found' }, { status: 404 });
+    }
+
+    // ลบ attendance ทั้งหมดของนักเรียนคนนี้ (ถ้ามี model Attendance)
+    await Attendance.deleteMany({ studentId: student._id }).catch(() => {});
+
+    // ลบ user ที่ผูกไว้ (ถ้าอยากลบไปพร้อมกัน)
+    if (student.userId) {
+      await User.findByIdAndDelete(student.userId).catch(() => {});
+    }
+
+    // ลบตัว student
+    await Student.findByIdAndDelete(id);
+
+    return NextResponse.json({ message: 'Student deleted successfully' }, { status: 200 });
+  } catch (err) {
+    console.error('DELETE /api/student/[id] error:', err);
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 
 export async function GET(request, { params }) {
     await mongoConnect();
@@ -36,16 +71,3 @@ export async function PUT(request, { params }) {
 
 }
 
-export async function DELETE(request, { params }) {
-    await mongoConnect();
-    console.log("Connected to MongoDB");
-
-    const { studentID } = await params;
-    const deleted  = await Student.findByIdAndDelete(studentID).lean();
-
-    if (!deleted ) {
-        return NextResponse.json({ message: 'Student not found' }, { status: 404 });
-    }
-    return NextResponse.json({ message: 'Student deleted successfully' })
-
-}

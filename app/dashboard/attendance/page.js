@@ -1,62 +1,101 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+async function safeJson(res) {
+    try { return await res.json(); } catch { return {}; }
+}
 
 export default function AttendancePage() {
-    const [teacher, setTeacher] = useState(null);
-    const [students, setStudents] = useState([]);
-    const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [branchId, setBranchId] = useState('');
+    const [me, setMe] = useState(null);
+    const [teacherId, setTeacherId] = useState('');
+    const [teacherDepartmentId, setTeacherDepartmentId] = useState('');
+
     const [branches, setBranches] = useState([]);
+    const [branchId, setBranchId] = useState('');
+
+    const [students, setStudents] = useState([]);
     const [records, setRecords] = useState({});
+    const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [loading, setLoading] = useState(false);
 
-    // 1️⃣ โหลดข้อมูลครูและสาขาที่สอน
+    // 1) โหลด me + สาขา
     useEffect(() => {
-        async function load() {
-            try {
-                const teacherRes = await fetch('/api/me'); // endpoint โปรไฟล์ครูที่ล็อกอินอยู่
-                const teacherData = await teacherRes.json();
-                setTeacher(teacherData?.user || null);
+        (async () => {
+            const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+            const meData = await safeJson(meRes);
 
-                const branchRes = await fetch('/api/branch');
-                const branchData = await branchRes.json();
-                setBranches(branchData?.branches || []);
-            } catch (err) {
-                console.error('load error:', err);
-            }
-        }
-        load();
+            const user = meData?.user || null;
+            setMe(user);
+
+            // ดึง teacherId และ departmentId ให้ได้จริง
+            // (รองรับหลายรูปแบบตามที่คุณส่งจาก /api/auth/me)
+            const tId =
+                user?.teacher?._id ||
+                user?.teacherId?._id ||
+                user?.teacherId ||
+                ''; // ถ้า /api/auth/me ยังไม่มี teacher ให้เพิ่มตามคำแนะนำด้านล่าง
+
+            const depId =
+                user?.teacher?.departmentId?._id ||
+                user?.teacher?.departmentId ||
+                user?.departmentId ||
+                '';
+
+            if (tId) setTeacherId(String(tId));
+            if (depId) setTeacherDepartmentId(String(depId));
+
+            // โหลดสาขา (รองรับทั้ง {branches} และ {data})
+            const branchRes = await fetch('/api/branch', { cache: 'no-store' });
+            const branchData = await safeJson(branchRes);
+            setBranches(branchData?.branches || branchData?.data || []);
+        })();
     }, []);
 
-    // 2️⃣ โหลดนักเรียนในสาขา
+    // กรองสาขาเฉพาะแผนกของครู
+    const myBranches = useMemo(() => {
+        if (!teacherDepartmentId) return branches;
+        return branches.filter(
+            b => String(b?.departmentId?._id || b?.departmentId) === String(teacherDepartmentId)
+        );
+    }, [branches, teacherDepartmentId]);
+
+    // 2) โหลดนักเรียนในสาขา
     async function loadStudents() {
-        if (!branchId || !teacher?._id) return;
+        if (!teacherId) {
+            alert('ไม่พบ teacherId — ตรวจ /api/auth/me');
+            return;
+        }
+        if (!branchId) {
+            alert('กรุณาเลือกสาขา');
+            return;
+        }
+
         setLoading(true);
-        const res = await fetch(`/api/teachers/${teacher._id}/students?branchId=${branchId}`);
-        const data = await res.json();
-        setStudents(data?.students || []);
+        const res = await fetch(`/api/teachers/${teacherId}/students?branchId=${branchId}`, {
+            cache: 'no-store',
+        });
+        const data = await safeJson(res);
+        setStudents(data?.students || data?.data || []);
         setLoading(false);
     }
 
-    // 3️⃣ เปลี่ยนสถานะการเช็คชื่อ
+    // 3) เปลี่ยนสถานะเช็คชื่อ
     function toggleStatus(studentId, status) {
-        setRecords(prev => ({
-            ...prev,
-            [studentId]: status,
-        }));
+        setRecords(prev => ({ ...prev, [studentId]: status }));
     }
 
-    // 4️⃣ บันทึกผลเช็คชื่อ
+    // 4) บันทึกผลเช็คชื่อ
     async function saveAttendance() {
-        if (!teacher?._id) return alert('No teacher found');
+        if (!teacherId) return alert('No teacher found');
+
         const payload = Object.entries(records).map(([studentId, status]) => ({
             studentId,
             date,
             status,
         }));
 
-        const res = await fetch(`/api/teachers/${teacher._id}/attendance`, {
+        const res = await fetch(`/api/teachers/${teacherId}/attendance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ records: payload }),
@@ -64,7 +103,7 @@ export default function AttendancePage() {
 
         if (res.ok) alert('Attendance saved ✅');
         else {
-            const err = await res.json().catch(() => ({}));
+            const err = await safeJson(res);
             alert(err.message || 'Failed to save attendance ❌');
         }
     }
@@ -75,7 +114,6 @@ export default function AttendancePage() {
                 <div className="card-body">
                     <h2 className="card-title">Check Attendance</h2>
 
-                    {/* ✅ เลือกวันที่และสาขา */}
                     <div className="flex flex-col md:flex-row gap-3">
                         <input
                             type="date"
@@ -90,7 +128,7 @@ export default function AttendancePage() {
                             onChange={e => setBranchId(e.target.value)}
                         >
                             <option value="">Select Branch</option>
-                            {branches.map(b => (
+                            {myBranches.map(b => (
                                 <option key={b._id} value={b._id}>{b.name}</option>
                             ))}
                         </select>
@@ -100,7 +138,6 @@ export default function AttendancePage() {
                 </div>
             </div>
 
-            {/* ✅ ตารางเช็คชื่อ */}
             <div className="card bg-base-100 shadow">
                 <div className="card-body">
                     <h3 className="card-title">Students</h3>
@@ -143,7 +180,6 @@ export default function AttendancePage() {
                         </div>
                     )}
 
-                    {/* ✅ ปุ่มบันทึก */}
                     <div className="mt-4 text-right">
                         <button onClick={saveAttendance} className="btn btn-success">
                             Save Attendance

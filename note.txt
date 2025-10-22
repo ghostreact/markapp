@@ -10,9 +10,18 @@ REFRESH_TOKEN_EXPIRES=30d
 # ทำ index เฉพาะตอนตั้งค่า
 MONGODB_SYNC_INDEXES=false
 
+ADMIN_USERNAME="RootAdmin"
+ADMIN_PASSWORD="rootadmin12345"
+
 # seed ตอนบูต (เปิดเฉพาะตอนเริ่มระบบ/ทดสอบ)
 SEED_ON_BOOT=true
 
 ลำดับขั้นตอนการใช้งาน api 
 1. รอ seeding admin to Database
 2. สร้าง Teacher ใน /api
+
+Admin → สร้างครู + กำหนดแผนก / สาขา
+
+ครู → สร้างนักเรียนในสาขาที่ตัวเองดูแล
+
+ครู → เช็คชื่อเฉพาะนักเรียนของตัวเอง

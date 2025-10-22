@@ -1,115 +1,138 @@
 import mongoConnect from '@/lib/mongodb';
-import { Attendance, Student, Teacher } from '@/Models';
 import { NextResponse } from 'next/server';
 import { isValidObjectId } from 'mongoose';
+import { Teacher, Student, Attendance } from '@/Models';
 
-/**
- * GET /api/teachers/:teacherId/attendance
- * Query:
- *  - date=YYYY-MM-DD   (ระบุวันเดียว)
- *  - from=YYYY-MM-DD   (ช่วงเริ่ม)
- *  - to=YYYY-MM-DD     (ช่วงสิ้นสุด)
- *  - studentId=...     (กรองนักเรียนรายคน)
- *  - status=Present|Late|Leave|Absent
- *  - page=1&limit=20&sort=-date
- */
 export async function GET(request, { params }) {
-    await mongoConnect();
-    const { teacherId } = await params;
+  await mongoConnect();
 
-    try {
-        // 0) validate teacher
-        const teacher = await Teacher.findById(teacherId).lean();
-        if (!teacher) {
-            return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
-        }
+  // ❌ ไม่ต้อง await
+  const { teacherId } = await params;
 
-        const { searchParams } = new URL(request.url);
-        const dateStr = searchParams.get('date');       // วันเดียว
-        const fromStr = searchParams.get('from');       // ช่วงเริ่ม
-        const toStr = searchParams.get('to');           // ช่วงจบ
-        const studentId = searchParams.get('studentId');
-        const status = searchParams.get('status');      // Present|Late|Leave|Absent
-        const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
-        const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10), 1), 100);
-        const sort = searchParams.get('sort') || '-date';
+  // ✅ ตรวจ id ก่อน
+  if (!isValidObjectId(teacherId)) {
+    return NextResponse.json({ message: 'Invalid teacherId' }, { status: 400 });
+  }
 
-        // 1) จำกัดเฉพาะนักเรียนใน department ของครู (ตาม schema ปัจจุบัน)
-        if (!teacher.departmentId) {
-            return NextResponse.json({ count: 0, data: [], meta: { page, limit, total: 0, totalPages: 1 } }, { status: 200 });
-        }
-        const studentIds = await Student.find({ departmentId: teacher.departmentId }).select('_id').lean();
-        const allowedIds = new Set(studentIds.map(s => String(s._id)));
-        if (allowedIds.size === 0) {
-            return NextResponse.json({ count: 0, data: [], meta: { page, limit, total: 0, totalPages: 1 } }, { status: 200 });
-        }
-
-        // 2) สร้าง filter
-        const filter = { studentId: { $in: Array.from(allowedIds) } };
-
-        if (studentId) {
-            if (!isValidObjectId(studentId)) return NextResponse.json({ message: 'Invalid studentId' }, { status: 400 });
-            if (!allowedIds.has(String(studentId))) {
-                // ไม่ใช่นักเรียนในแผนกนี้
-                return NextResponse.json({ count: 0, data: [], meta: { page, limit, total: 0, totalPages: 1 } }, { status: 200 });
-            }
-            filter.studentId = studentId;
-        }
-
-        if (status) {
-            filter.status = status; // ตรวจค่าจริงๆ ได้ถ้าต้องการเข้มขึ้น
-        }
-
-        // 3) ช่วงเวลา
-        if (dateStr) {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return NextResponse.json({ message: 'Invalid date' }, { status: 400 });
-            // match เฉพาะวันนั้น (ตั้งเป็น 00:00-23:59)
-            const start = new Date(d); start.setHours(0, 0, 0, 0);
-            const end = new Date(d); end.setHours(23, 59, 59, 999);
-            filter.date = { $gte: start, $lte: end };
-        } else if (fromStr || toStr) {
-            filter.date = {};
-            if (fromStr) {
-                const from = new Date(fromStr);
-                if (isNaN(from.getTime())) return NextResponse.json({ message: 'Invalid from' }, { status: 400 });
-                filter.date.$gte = from;
-            }
-            if (toStr) {
-                const to = new Date(toStr);
-                if (isNaN(to.getTime())) return NextResponse.json({ message: 'Invalid to' }, { status: 400 });
-                filter.date.$lte = to;
-            }
-        }
-
-        // 4) นับ + ดึงข้อมูล
-        const total = await Attendance.countDocuments(filter);
-        const data = await Attendance.find(filter)
-            .sort(sort)
-            .skip((page - 1) * limit)
-            .limit(limit)
-            .populate({
-                path: 'studentId', select: 'studentCode name branchId departmentId', populate: [
-                    { path: 'branchId', select: 'name' },
-                    { path: 'departmentId', select: 'name' },
-                ]
-            })
-            .lean();
-
-        const meta = {
-            page, limit, total,
-            totalPages: Math.max(1, Math.ceil(total / limit)),
-            hasNext: page * limit < total,
-            hasPrev: page > 1,
-            sort,
-        };
-
-        return NextResponse.json({ count: data.length, data, meta }, { status: 200 });
-    } catch (err) {
-        console.error('GET /teachers/:teacherId/attendance error:', err);
-        return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  try {
+    // ✅ หา teacher ให้เจอจริง ๆ
+    const teacher = await Teacher.findById(teacherId).select('departmentId').lean();
+    if (!teacher) {
+      return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
     }
+
+    // อ่าน query
+    const { searchParams } = new URL(request.url);
+    const dateStr   = searchParams.get('date');
+    const fromStr   = searchParams.get('from');
+    const toStr     = searchParams.get('to');
+    const studentId = searchParams.get('studentId');
+    const status    = searchParams.get('status'); // Present | Late | Leave | Absent
+    const branchId  = searchParams.get('branchId'); // ✅ เพิ่มรองรับ branch
+    const page      = Math.max(parseInt(searchParams.get('page')  || '1', 10), 1);
+    const limit     = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10), 1), 100);
+    const sort      = searchParams.get('sort') || '-date';
+
+    // 1) เลือกเฉพาะนักเรียนใน department ของครู (+กรอง branch ถ้าส่งมา)
+    if (!teacher.departmentId) {
+      return NextResponse.json(
+        { count: 0, data: [], meta: { page, limit, total: 0, totalPages: 1 } },
+        { status: 200 }
+      );
+    }
+
+    const studentQuery = { departmentId: teacher.departmentId };
+    if (branchId) {
+      if (!isValidObjectId(branchId)) {
+        return NextResponse.json({ message: 'Invalid branchId' }, { status: 400 });
+      }
+      studentQuery.branchId = branchId;
+    }
+
+    const studentIds = await Student.find(studentQuery).select('_id').lean();
+    if (studentIds.length === 0) {
+      return NextResponse.json(
+        { count: 0, data: [], meta: { page, limit, total: 0, totalPages: 1 } },
+        { status: 200 }
+      );
+    }
+    const allowedIds = new Set(studentIds.map(s => String(s._id)));
+
+    // 2) สร้าง filter สำหรับ Attendance
+    const filter = { studentId: { $in: Array.from(allowedIds) } };
+
+    if (studentId) {
+      if (!isValidObjectId(studentId)) {
+        return NextResponse.json({ message: 'Invalid studentId' }, { status: 400 });
+      }
+      if (!allowedIds.has(String(studentId))) {
+        // ไม่ใช่นักเรียนในขอบเขตของครู/สาขานี้
+        return NextResponse.json(
+          { count: 0, data: [], meta: { page, limit, total: 0, totalPages: 1 } },
+          { status: 200 }
+        );
+      }
+      filter.studentId = studentId;
+    }
+
+    if (status) {
+      filter.status = status; // จะ validate ว่าอยู่ในชุดค่าที่อนุญาตก็ได้
+    }
+
+    // 3) สร้างช่วงวันเวลา
+    if (dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return NextResponse.json({ message: 'Invalid date' }, { status: 400 });
+      const start = new Date(d); start.setHours(0, 0, 0, 0);
+      const end   = new Date(d); end.setHours(23, 59, 59, 999);
+      filter.date = { $gte: start, $lte: end };
+    } else if (fromStr || toStr) {
+      filter.date = {};
+      if (fromStr) {
+        const from = new Date(fromStr);
+        if (isNaN(from.getTime())) return NextResponse.json({ message: 'Invalid from' }, { status: 400 });
+        filter.date.$gte = from;
+      }
+      if (toStr) {
+        const to = new Date(toStr);
+        if (isNaN(to.getTime())) return NextResponse.json({ message: 'Invalid to' }, { status: 400 });
+        filter.date.$lte = to;
+      }
+    }
+
+    // 4) นับ + ดึงข้อมูล
+    const total = await Attendance.countDocuments(filter);
+    const data = await Attendance.find(filter)
+      .sort(sort)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate({
+        path: 'studentId',
+        select: 'studentCode name branchId departmentId',
+        populate: [
+          { path: 'branchId', select: 'name' },
+          { path: 'departmentId', select: 'name' },
+        ],
+      })
+      .lean();
+
+    const meta = {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      hasNext: page * limit < total,
+      hasPrev: page > 1,
+      sort,
+    };
+
+    return NextResponse.json({ count: data.length, data, meta }, { status: 200 });
+  } catch (err) {
+    console.error('GET /teachers/:teacherId/attendance error:', err);
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  }
 }
+
 
 /**
  * POST /api/teachers/:teacherId/attendance

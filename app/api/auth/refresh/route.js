@@ -1,4 +1,7 @@
 // app/api/auth/refresh/route.js
+export const runtime = 'nodejs';
+
+import mongoConnect from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
 import { verifyRefreshToken, signAccessToken, signRefreshToken } from '@/lib/jwt';
 import { COOKIE, cookieOptions } from '@/lib/cookies';

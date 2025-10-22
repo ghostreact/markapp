@@ -133,7 +133,7 @@ export default function UsersPage() {
                                         <th>Name</th>
                                         <th>Username</th>
                                         <th>Department</th>
-                                        <th>Branch</th>
+                                       
                                         <th></th>
                                     </tr>
                                 </thead>
