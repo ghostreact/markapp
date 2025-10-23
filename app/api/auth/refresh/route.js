@@ -4,13 +4,13 @@ export const runtime = 'nodejs';
 import mongoConnect from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
 import { verifyRefreshToken, signAccessToken, signRefreshToken } from '@/lib/jwt';
-import { COOKIE, cookieOptions } from '@/lib/cookies';
+import { COOKIE, cookieOptions, getCookieFromRequest } from '@/lib/cookie';
 import bcrypt from 'bcryptjs';
 import { Session } from '@/Models';
 
 export async function POST(req) {
   try {
-    const refreshToken = req.cookies.get(COOKIE.REFRESH)?.value;
+    const refreshToken = getCookieFromRequest(req, COOKIE.REFRESH);
     if (!refreshToken) return NextResponse.json({ message: 'No refresh token' }, { status: 401 });
 
     let payload;

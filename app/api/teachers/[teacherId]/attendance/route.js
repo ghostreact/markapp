@@ -33,6 +33,82 @@ function normalizeAttendanceDate(date) {
     return normalized;
 }
 
+function normalizeRefDocument(ref) {
+    if (!ref) return null;
+    if (typeof ref === 'string') {
+        return { _id: ref };
+    }
+
+    const id = ref._id ?? ref.id ?? null;
+    const result = {};
+
+    if (id) {
+        result._id = String(id);
+    }
+
+    if (ref.name) {
+        result.name = ref.name;
+    }
+
+    return Object.keys(result).length ? result : null;
+}
+
+function normalizeStudentDocument(doc) {
+    if (!doc) return null;
+
+    if (typeof doc === 'string') {
+        return { _id: doc };
+    }
+
+    const normalized = {};
+    const id = doc._id ?? doc.id ?? null;
+    if (id) normalized._id = String(id);
+
+    if (doc.studentCode) normalized.studentCode = doc.studentCode;
+    if (doc.name) normalized.name = doc.name;
+
+    const branch = normalizeRefDocument(doc.branchId);
+    if (branch) normalized.branchId = branch;
+
+    const department = normalizeRefDocument(doc.departmentId);
+    if (department) normalized.departmentId = department;
+
+    return Object.keys(normalized).length ? normalized : null;
+}
+
+function normalizeAttendanceRecord(record) {
+    const student = normalizeStudentDocument(record.studentId);
+
+    const dateValue =
+        record.date instanceof Date ? record.date.toISOString() : record.date;
+
+    const createdAt =
+        record.createdAt instanceof Date
+            ? record.createdAt.toISOString()
+            : record.createdAt;
+
+    const updatedAt =
+        record.updatedAt instanceof Date
+            ? record.updatedAt.toISOString()
+            : record.updatedAt;
+
+    return {
+        id: record._id ? String(record._id) : undefined,
+        date: dateValue,
+        status: record.status,
+        student,
+        studentId:
+            student?._id ??
+            (typeof record.studentId === 'string'
+                ? record.studentId
+                : record.studentId?._id
+                ? String(record.studentId._id)
+                : undefined),
+        createdAt,
+        updatedAt,
+    };
+}
+
 export async function GET(request, { params }) {
     await mongoConnect();
 
@@ -159,7 +235,8 @@ export async function GET(request, { params }) {
             sort,
         };
 
-        return NextResponse.json({ count: records.length, data: records, meta }, { status: 200 });
+        const data = records.map(normalizeAttendanceRecord);
+        return NextResponse.json({ count: data.length, data, meta }, { status: 200 });
     } catch (error) {
         console.error('GET /teachers/:teacherId/attendance error:', error);
         return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
