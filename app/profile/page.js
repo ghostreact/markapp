@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useDashboard } from '../components/dashboard/DashboardContext';
+import { getStudentLevelLabel } from '@/lib/constants/student-levels';
 
 function InfoRow({ label, value }) {
     return (
@@ -120,12 +121,10 @@ export default function ProfilePage() {
                     <InfoRow label="Student Code" value={student.studentCode} />
                     <InfoRow
                         label="Level"
-                        value={student.levelLabel || student.level || '-'}
+                        value={getStudentLevelLabel(student.level)}
                     />
-                    <InfoRow
-                        label="Branch"
-                        value={student.branchId?.name || '-'}
-                    />
+                    <InfoRow label="Year" value={student.year} />
+                    <InfoRow label="Room" value={student.room} />
                     <InfoRow
                         label="Department"
                         value={student.departmentId?.name || '-'}

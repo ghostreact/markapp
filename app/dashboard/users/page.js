@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { STUDENT_LEVELS } from '@/lib/constants/student-levels';
+import {
+    STUDENT_LEVELS,
+    getYearsForLevel,
+    getRooms,
+    formatClassLabel,
+} from '@/lib/constants/student-levels';
 
 const DEFAULT_LEVEL = STUDENT_LEVELS[0]?.value || '';
 const LEVEL_LABEL_MAP = Object.fromEntries(STUDENT_LEVELS.map((opt) => [opt.value, opt.label]));
@@ -9,6 +14,7 @@ const LEVEL_LABEL_MAP = Object.fromEntries(STUDENT_LEVELS.map((opt) => [opt.valu
 export default function UsersPage() {
     const [teachers, setTeachers] = useState([]);
     const [departments, setDepartments] = useState([]);
+    // branch ถูกถอดจาก UI
     const [branches, setBranches] = useState([]);
     const [form, setForm] = useState({
         username: '',
@@ -16,12 +22,15 @@ export default function UsersPage() {
         employeeCode: '',
         name: '',
         departmentId: '',
-        branchId: '',
         level: DEFAULT_LEVEL,
+        homerooms: [],
     });
     const [loading, setLoading] = useState(true);
     const [filterDep, setFilterDep] = useState('');
     const [filterLevel, setFilterLevel] = useState('');
+    const [hrLevel, setHrLevel] = useState(DEFAULT_LEVEL);
+    const [hrYear, setHrYear] = useState(1);
+    const [hrRoom, setHrRoom] = useState(1);
 
     async function load() {
         setLoading(true);
@@ -43,8 +52,8 @@ export default function UsersPage() {
         setForm((prev) => ({
             ...prev,
             departmentId: prev.departmentId || deps[0]?._id || '',
-            branchId: prev.branchId || '',
             level: prev.level || DEFAULT_LEVEL,
+            homerooms: prev.homerooms || [],
         }));
         setLoading(false);
     }
@@ -52,9 +61,24 @@ export default function UsersPage() {
     useEffect(() => { load(); }, []);
 
     const branchesByDep = useMemo(
-        () => branches.filter((b) => String(b?.departmentId?._id || b.departmentId) === String(form.departmentId)),
-        [branches, form.departmentId],
+        () => [],
+        [form.departmentId],
     );
+
+    function addHomeroom() {
+        const entry = { level: hrLevel, year: hrYear, room: hrRoom };
+        const key = (h) => `${h.level}:${h.year}:${h.room}`;
+        const exists = (form.homerooms || []).some((h) => key(h) === key(entry));
+        if (exists) return;
+        setForm((prev) => ({ ...prev, homerooms: [...(prev.homerooms || []), entry] }));
+    }
+
+    function removeHomeroom(idx) {
+        setForm((prev) => ({
+            ...prev,
+            homerooms: (prev.homerooms || []).filter((_, i) => i !== idx),
+        }));
+    }
 
     async function createTeacher(e) {
         e.preventDefault();
@@ -64,8 +88,8 @@ export default function UsersPage() {
             employeeCode: form.employeeCode,
             name: form.name,
             departmentId: form.departmentId,
-            branchId: form.branchId || undefined,
             level: form.level,
+            homerooms: form.homerooms || [],
         };
         const res = await fetch('/api/teachers', {
             method: 'POST',
@@ -79,8 +103,8 @@ export default function UsersPage() {
                 employeeCode: '',
                 name: '',
                 departmentId: form.departmentId,
-                branchId: '',
                 level: DEFAULT_LEVEL,
+                homerooms: [],
             });
             await load();
         } else {
@@ -146,7 +170,7 @@ export default function UsersPage() {
                         <select
                             className="select select-bordered"
                             value={form.departmentId}
-                            onChange={(e) => setForm({ ...form, departmentId: e.target.value, branchId: '' })}
+                            onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
                             required
                         >
                             <option value="" disabled>Select department</option>
@@ -157,7 +181,7 @@ export default function UsersPage() {
                         <select
                             className="select select-bordered"
                             value={form.level}
-                            onChange={(e) => setForm({ ...form, level: e.target.value })}
+                            onChange={(e) => setForm({ ...form, level: e.target.value, homerooms: [] })}
                             required
                         >
                             <option value="" disabled>Select level</option>
@@ -165,16 +189,50 @@ export default function UsersPage() {
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
                         </select>
-                        <select
-                            className="select select-bordered"
-                            value={form.branchId}
-                            onChange={(e) => setForm({ ...form, branchId: e.target.value })}
-                        >
-                            <option value="">(optional) Branch</option>
-                            {branchesByDep.map((b) => (
-                                <option key={b._id} value={b._id}>{b.name}</option>
-                            ))}
-                        </select>
+                        {/* Homeroom assignment controls */}
+                        <div className="md:col-span-2 border rounded p-3">
+                            <div className="font-semibold mb-2">Homeroom Assignments</div>
+                            <div className="flex flex-col md:flex-row gap-2 items-start">
+                                <select
+                                    className="select select-bordered"
+                                    value={hrLevel}
+                                    onChange={(e) => { setHrLevel(e.target.value); setHrYear(1); }}
+                                >
+                                    {STUDENT_LEVELS.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    className="select select-bordered"
+                                    value={hrYear}
+                                    onChange={(e) => setHrYear(Number(e.target.value))}
+                                >
+                                    {getYearsForLevel(hrLevel).map((y) => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    className="select select-bordered"
+                                    value={hrRoom}
+                                    onChange={(e) => setHrRoom(Number(e.target.value))}
+                                >
+                                    {getRooms().map((r) => (
+                                        <option key={r} value={r}>{r}</option>
+                                    ))}
+                                </select>
+                                <button type="button" className="btn" onClick={addHomeroom}>Add</button>
+                            </div>
+                            {(form.homerooms || []).length > 0 && (
+                                <ul className="mt-3 space-y-1">
+                                    {form.homerooms.map((h, idx) => (
+                                        <li key={`${h.level}-${h.year}-${h.room}`} className="flex items-center justify-between">
+                                            <span>{formatClassLabel(h.level, h.year, h.room)}</span>
+                                            <button type="button" className="btn btn-xs" onClick={() => removeHomeroom(idx)}>Remove</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                         <div className="md:col-span-2">
                             <button className="btn btn-primary">Create</button>
                         </div>
@@ -223,7 +281,7 @@ export default function UsersPage() {
                                         <th>Username</th>
                                         <th>Department</th>
                                         <th>Level</th>
-                                        <th>Branch</th>
+                                        <th>Homerooms</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -236,9 +294,9 @@ export default function UsersPage() {
                                             <td>{t?.departmentId?.name || '-'}</td>
                                             <td>{LEVEL_LABEL_MAP[t.level] || '-'}</td>
                                             <td>
-                                                {t?.branchId?.name
-                                                    ?? branches.find((b) => String(b._id) === String(t.branchId))?.name
-                                                    ?? '-'}
+                                                {(t.homerooms || []).length
+                                                    ? (t.homerooms || []).map((h) => formatClassLabel(h.level, h.year, h.room)).join(', ')
+                                                    : '-'}
                                             </td>
                                             <td className="text-right">
                                                 <button

@@ -21,6 +21,17 @@ const TeacherSchema = new Schema(
             default: DEFAULT_STUDENT_LEVEL,
             index: true,
         },
+        // เพิ่มรายการครูประจำชั้น (หลายห้องได้) ให้แอดมินกำหนด
+        homerooms: [
+            new Schema(
+                {
+                    level: { type: String, enum: STUDENT_LEVEL_VALUES, required: true },
+                    year: { type: Number, min: 1, max: 3, required: true },
+                    room: { type: Number, min: 1, max: 20, required: true },
+                },
+                { _id: false }
+            ),
+        ],
     },
     schemaOptions
 );

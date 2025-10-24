@@ -3,7 +3,7 @@ import { isValidObjectId } from 'mongoose';
 
 import { hashPassword } from '@/tools/hashpassword';
 import { NextResponse } from 'next/server';
-import { Branch, Department, Teacher, User } from '@/Models';
+import { Department, Teacher, User } from '@/Models';
 import {
   DEFAULT_STUDENT_LEVEL,
   STUDENT_LEVEL_VALUES,
@@ -50,8 +50,8 @@ export async function POST(request) {
       employeeCode,
       name,
       departmentId,
-      branchId,
       level = DEFAULT_STUDENT_LEVEL,
+      homerooms = [],
     } = await request.json();
 
     if (!username?.trim() || !password?.trim() || !employeeCode?.trim() || !name?.trim() || !departmentId) {
@@ -68,24 +68,13 @@ export async function POST(request) {
     if (!isValidObjectId(departmentId)) {
       return NextResponse.json({ message: 'Invalid departmentId' }, { status: 400 });
     }
-    if (branchId && !isValidObjectId(branchId)) {
-      return NextResponse.json({ message: 'Invalid branchId' }, { status: 400 });
-    }
 
     const dep = await Department.findById(departmentId).lean();
     if (!dep) {
       return NextResponse.json({ message: 'Department not found' }, { status: 404 });
     }
 
-    let finalBranchId = null;
-    if (branchId) {
-      const br = await Branch.findById(branchId).lean();
-      if (!br) return NextResponse.json({ message: 'Branch not found' }, { status: 404 });
-      if (br.departmentId && String(br.departmentId) !== String(departmentId)) {
-        return NextResponse.json({ message: 'Branch does not belong to department' }, { status: 400 });
-      }
-      finalBranchId = br._id;
-    }
+    // branch ถูกถอดจากระบบ ฝั่ง API จะไม่รับค่า branch อีกต่อไป
 
     const existingUser = await User.findOne({ username }).lean();
     if (existingUser) {
@@ -104,13 +93,29 @@ export async function POST(request) {
       role: 'Teacher',
     });
 
+    // sanitize homerooms (optional)
+    const rooms = Array.isArray(homerooms)
+      ? homerooms
+          .map((h) => ({
+            level: h?.level,
+            year: Number(h?.year),
+            room: Number(h?.room),
+          }))
+          .filter(
+            (h) =>
+              h.level && STUDENT_LEVEL_VALUES.includes(h.level) &&
+              Number.isFinite(h.year) && h.year >= 1 && h.year <= 3 &&
+              Number.isFinite(h.room) && h.room >= 1 && h.room <= 20,
+          )
+      : [];
+
     const teacher = await Teacher.create({
       employeeCode,
       name,
       userId: newUser._id,
       departmentId,
-      branchId: finalBranchId,
       level,
+      homerooms: rooms,
     });
 
     const safe = await Teacher.findById(teacher._id)

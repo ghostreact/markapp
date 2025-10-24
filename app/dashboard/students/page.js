@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { STUDENT_LEVELS } from '@/lib/constants/student-levels';
+import {
+  STUDENT_LEVELS,
+  getYearsForLevel,
+  getRooms,
+  formatClassLabel,
+} from '@/lib/constants/student-levels';
 
 async function safeJson(res) {
   try {
@@ -21,7 +26,7 @@ export default function StudentsPage() {
 
   const [students, setStudents] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [branches, setBranches] = useState([]);
+  const [branches, setBranches] = useState([]); // branch ถูกถอดจาก UI
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ depId: '', level: '' });
 
@@ -33,6 +38,8 @@ export default function StudentsPage() {
     departmentId: '',
     branchId: '',
     level: DEFAULT_LEVEL,
+    year: 1,
+    room: 1,
   });
 
   useEffect(() => {
@@ -80,12 +87,14 @@ export default function StudentsPage() {
     const deps = d?.departments || d?.data || [];
     const brs = b?.branches || b?.data || [];
     setDepartments(deps);
-    setBranches(brs);
+    setBranches([]);
 
     setForm((prev) => ({
       ...prev,
       departmentId: prev.departmentId || deps[0]?._id || '',
       level: teacherLevel || prev.level || DEFAULT_LEVEL,
+      year: 1,
+      room: 1,
     }));
     setLoading(false);
   }
@@ -122,8 +131,9 @@ export default function StudentsPage() {
       username: form.username,
       password: form.password,
       departmentId: form.departmentId,
-      branchId: form.branchId || undefined,
       level: targetLevel,
+      year: form.year,
+      room: form.room,
     };
 
     const res = await fetch(`/api/teachers/${teacherId}/students`, {
@@ -141,6 +151,8 @@ export default function StudentsPage() {
         password: '',
         branchId: '',
         level: teacherLevel || DEFAULT_LEVEL,
+        year: 1,
+        room: 1,
       }));
       await loadLists();
     } else {
@@ -165,7 +177,7 @@ export default function StudentsPage() {
     <div className="p-4 md:p-6 space-y-6">
       <div className="card bg-base-100 shadow">
         <div className="card-body">
-          <h2 className="card-title">Create Student</h2>
+          <h2 className="card-title">Add Student</h2>
 
           {me && (
             <div className="mb-2 text-sm opacity-70">
@@ -173,7 +185,8 @@ export default function StudentsPage() {
             </div>
           )}
 
-          <form onSubmit={createStudent} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <form onSubmit={createStudent} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-3 font-semibold opacity-80">Student Info</div>
             <input
               className="input input-bordered"
               placeholder="Student Code"
@@ -203,6 +216,7 @@ export default function StudentsPage() {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required
             />
+            <div className="md:col-span-3 font-semibold opacity-80 pt-2">Class Info</div>
             <select
               className="select select-bordered"
               value={form.departmentId}
@@ -217,7 +231,7 @@ export default function StudentsPage() {
             <select
               className="select select-bordered"
               value={form.level}
-              onChange={(e) => setForm({ ...form, level: e.target.value })}
+              onChange={(e) => setForm({ ...form, level: e.target.value, year: 1, room: 1 })}
               required
               disabled={Boolean(teacherLevel)}
             >
@@ -228,16 +242,29 @@ export default function StudentsPage() {
             </select>
             <select
               className="select select-bordered"
-              value={form.branchId}
-              onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+              value={form.year}
+              onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
+              required
             >
-              <option value="">(optional) Branch</option>
-              {branchesByDep.map((b) => (
-                <option key={b._id} value={b._id}>{b.name}</option>
+              {getYearsForLevel(teacherLevel || form.level).map((y) => (
+                <option key={y} value={y}>{y}</option>
               ))}
             </select>
+            <select
+              className="select select-bordered"
+              value={form.room}
+              onChange={(e) => setForm({ ...form, room: Number(e.target.value) })}
+              required
+            >
+              {getRooms().map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+            <div className="md:col-span-3 text-sm opacity-70">
+              Selected Class: {formatClassLabel(teacherLevel || form.level, form.year, form.room)}
+            </div>
             <div className="md:col-span-3">
-              <button className="btn btn-primary">Create</button>
+              <button className="btn btn-primary">Add Student</button>
             </div>
           </form>
         </div>
@@ -283,9 +310,8 @@ export default function StudentsPage() {
                     <th>Code</th>
                     <th>Name</th>
                     <th>Username</th>
-                    <th>Level</th>
+                    <th>Class</th>
                     <th>Department</th>
-                    <th>Branch</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -295,9 +321,8 @@ export default function StudentsPage() {
                       <td>{s.studentCode}</td>
                       <td>{s.name}</td>
                       <td>{s?.userId?.username}</td>
-                      <td>{LEVEL_LABEL_MAP[s.level] || '-'}</td>
+                      <td>{formatClassLabel(s.level, s.year || 1, s.room || 1)}</td>
                       <td>{s?.departmentId?.name || '-'}</td>
-                      <td>{s?.branchId?.name || '-'}</td>
                       <td className="text-right">
                         <button className="btn btn-error btn-sm" onClick={() => removeStudent(s._id)}>
                           Delete

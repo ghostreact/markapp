@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { STUDENT_LEVELS } from '@/lib/constants/student-levels';
+import {
+  STUDENT_LEVELS,
+  getYearsForLevel,
+  getRooms,
+  formatClassLabel,
+} from '@/lib/constants/student-levels';
 
 const LEVEL_LABEL_MAP = Object.fromEntries(STUDENT_LEVELS.map((opt) => [opt.value, opt.label]));
 
@@ -10,6 +15,8 @@ export default function AttendanceHistoryPage() {
   const [teacherId, setTeacherId] = useState('');
   const [teacherLevel, setTeacherLevel] = useState('');
   const [level, setLevel] = useState('');
+  const [year, setYear] = useState(1);
+  const [room, setRoom] = useState(1);
   const [range, setRange] = useState(() => {
     const d = new Date();
     const to = d.toISOString().split('T')[0];
@@ -39,6 +46,8 @@ export default function AttendanceHistoryPage() {
       if (assignedLevel) {
         setTeacherLevel(String(assignedLevel));
         setLevel(String(assignedLevel));
+        setYear(1);
+        setRoom(1);
       }
     })();
   }, []);
@@ -76,7 +85,9 @@ export default function AttendanceHistoryPage() {
             <div className="flex flex-col gap-1 text-sm opacity-70 md:items-end">
               {departmentName ? <span>Department: {departmentName}</span> : null}
               {(teacherLevel || level) ? (
-                <span>Level: {LEVEL_LABEL_MAP[teacherLevel || level] || teacherLevel || level}</span>
+                <span>
+                  Level: {formatClassLabel(teacherLevel || level, year, room)}
+                </span>
               ) : null}
             </div>
           </div>
@@ -96,12 +107,34 @@ export default function AttendanceHistoryPage() {
             <select
               className="select select-bordered"
               value={teacherLevel || level}
-              onChange={(e) => setLevel(e.target.value)}
+              onChange={(e) => { setLevel(e.target.value); setYear(1); }}
               disabled={Boolean(teacherLevel)}
             >
               <option value="">All levels</option>
               {STUDENT_LEVELS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <select
+              className="select select-bordered"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              disabled={!(teacherLevel || level)}
+            >
+              <option value="" disabled>Year</option>
+              {getYearsForLevel(teacherLevel || level).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <select
+              className="select select-bordered"
+              value={room}
+              onChange={(e) => setRoom(Number(e.target.value))}
+              disabled={!(teacherLevel || level)}
+            >
+              <option value="" disabled>Room</option>
+              {getRooms().map((r) => (
+                <option key={r} value={r}>{r}</option>
               ))}
             </select>
             <button className="btn btn-primary" onClick={search}>Search</button>

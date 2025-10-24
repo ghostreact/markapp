@@ -1,7 +1,7 @@
 // app/api/teachers/[teacherId]/students/route.js
 import { isValidObjectId } from 'mongoose';
 import mongoConnect from '@/lib/mongodb';
-import { Teacher, Student, User, Branch } from '@/Models';
+import { Teacher, Student, User } from '@/Models';
 import { NextResponse } from 'next/server';
 import { hashPassword } from '@/tools/hashpassword';
 import { STUDENT_LEVEL_VALUES, DEFAULT_STUDENT_LEVEL } from '@/lib/constants/student-levels';
@@ -12,8 +12,9 @@ export async function GET(request, { params }) {
   try {
     const { teacherId } = await params;
     const url = new URL(request.url);
-    const branchIdParam = url.searchParams.get('branchId');
     const levelParam = url.searchParams.get('level');
+    const yearParam = url.searchParams.get('year');
+    const roomParam = url.searchParams.get('room');
 
     let teacher = null;
 
@@ -51,27 +52,22 @@ export async function GET(request, { params }) {
       query.level = levelParam;
     }
 
-    if (branchIdParam) {
-      if (!isValidObjectId(branchIdParam)) {
-        return NextResponse.json({ message: 'Invalid branchId' }, { status: 400 });
-      }
-
-      const branch = await Branch.findById(branchIdParam).lean();
-      if (!branch) {
-        return NextResponse.json({ message: 'Branch not found' }, { status: 404 });
-      }
-
-      if (branch.departmentId && String(branch.departmentId) !== String(teacher.departmentId)) {
-        return NextResponse.json({ message: 'Branch does not belong to department' }, { status: 400 });
-      }
-
-      query.branchId = branch._id;
+    // Apply optional year/room filters if provided
+    const yearNum = Number(yearParam);
+    if (Number.isFinite(yearNum) && yearNum > 0) {
+      query.year = Math.floor(yearNum);
     }
+    const roomNum = Number(roomParam);
+    if (Number.isFinite(roomNum) && roomNum > 0) {
+      query.room = Math.floor(roomNum);
+    }
+
+    // branch ถูกถอดออก ไม่รองรับการ filter ด้วย branch อีกต่อไป
 
     const students = await Student.find(query)
       .populate('userId', 'username role')
       .populate('departmentId', 'name')
-      .populate('branchId', 'name')
+      // .populate('branchId', 'name') // branch ถูกถอดจาก UI
       .lean();
 
     return NextResponse.json({ count: students.length, data: students }, { status: 200 });
@@ -102,7 +98,7 @@ export async function POST(request, { params }) {
     return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
   }
 
-  const { studentCode, name, username, password, branchId, departmentId, level } = await request.json();
+  const { studentCode, name, username, password, departmentId, level, year, room } = await request.json();
 
   if (!studentCode || !name || !username || !password) {
     return NextResponse.json(
@@ -133,17 +129,7 @@ export async function POST(request, { params }) {
   }
 
   let brId = null;
-  if (branchId) {
-    if (!isValidObjectId(branchId)) {
-      return NextResponse.json({ message: 'Invalid branchId' }, { status: 400 });
-    }
-    const br = await Branch.findById(branchId).lean();
-    if (!br) return NextResponse.json({ message: 'Branch not found' }, { status: 404 });
-    if (br.departmentId && String(br.departmentId) !== String(depId)) {
-      return NextResponse.json({ message: 'Branch does not belong to department' }, { status: 400 });
-    }
-    brId = br._id;
-  }
+  // branch ถูกถอดจากระบบ
 
   // กันซ้ำ
   if (await User.findOne({ username }).lean()) {
@@ -162,8 +148,9 @@ export async function POST(request, { params }) {
     name,
     userId: user._id,
     departmentId: depId,
-    branchId: brId,
     level: studentLevel,
+    year: Number.isFinite(Number(year)) ? Math.max(1, Math.min(3, Number(year))) : 1,
+    room: Number.isFinite(Number(room)) ? Math.max(1, Math.min(20, Number(room))) : 1,
     // ถ้าคุณมีฟิลด์ teacherId ใน Student schema ใส่ตรงนี้ได้ด้วย
     // teacherId: teacher._id,
   });
@@ -171,7 +158,7 @@ export async function POST(request, { params }) {
   const created = await Student.findById(student._id)
     .populate('userId', 'username role')
     .populate('departmentId', 'name')
-    .populate('branchId', 'name')
+    // .populate('branchId', 'name')
     .lean();
 
   return NextResponse.json({ student: created }, { status: 201 });

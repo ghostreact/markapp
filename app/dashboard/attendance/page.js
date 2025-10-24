@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { STUDENT_LEVELS } from '@/lib/constants/student-levels';
+import {
+  STUDENT_LEVELS,
+  getYearsForLevel,
+  getRooms,
+  formatClassLabel,
+} from '@/lib/constants/student-levels';
 
 async function safeJson(res) {
   try {
@@ -18,6 +23,8 @@ export default function AttendancePage() {
   const [teacherId, setTeacherId] = useState('');
   const [teacherLevel, setTeacherLevel] = useState('');
   const [level, setLevel] = useState('');
+  const [year, setYear] = useState(1);
+  const [room, setRoom] = useState(1);
 
   const [students, setStudents] = useState([]);
   const [records, setRecords] = useState({});
@@ -43,6 +50,8 @@ export default function AttendancePage() {
       if (assignedLevel) {
         setTeacherLevel(String(assignedLevel));
         setLevel(String(assignedLevel));
+        setYear(1);
+        setRoom(1);
       }
     })();
   }, []);
@@ -72,7 +81,7 @@ export default function AttendancePage() {
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({ level: targetLevel });
+      const params = new URLSearchParams({ level: targetLevel, year: String(year), room: String(room) });
       const res = await fetch(`/api/teachers/${teacherId}/students?${params.toString()}`, {
         cache: 'no-store',
       });
@@ -121,40 +130,74 @@ export default function AttendancePage() {
         <div className="card-body">
           <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
             <h2 className="card-title">Check Attendance</h2>
-            <div className="flex flex-col gap-1 text-sm opacity-70 md:items-end">
-              {departmentName ? <span>Department: {departmentName}</span> : null}
-              {(teacherLevel || level) ? (
-                <span>Level: {LEVEL_LABEL_MAP[teacherLevel || level] || teacherLevel || level}</span>
-              ) : null}
-            </div>
+          <div className="flex flex-col gap-1 text-sm opacity-70 md:items-end">
+            {departmentName ? <span>Department: {departmentName}</span> : null}
+            {(teacherLevel || level) ? (
+              <span>
+                Level: {formatClassLabel(teacherLevel || level, year, room)}
+              </span>
+            ) : null}
           </div>
+        </div>
 
-          <div className="flex flex-col md:flex-row gap-3">
-            <input
-              type="date"
-              className="input input-bordered w-full md:w-auto"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            type="date"
+            className="input input-bordered w-full md:w-auto"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
 
-            <select
-              className="select select-bordered w-full md:w-auto"
-              value={teacherLevel || level}
-              onChange={(e) => setLevel(e.target.value)}
-              disabled={Boolean(teacherLevel)}
-            >
-              <option value="">Select Level</option>
-              {STUDENT_LEVELS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+          <select
+            className="select select-bordered w-full md:w-auto"
+            value={teacherLevel || level}
+            onChange={(e) => { setLevel(e.target.value); setYear(1); setRoom(1); }}
+            disabled={Boolean(teacherLevel)}
+          >
+            <option value="">Select Level</option>
+            {STUDENT_LEVELS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
 
-            <button onClick={loadStudents} className="btn btn-primary">
-              Load Students
-            </button>
-          </div>
+          <select
+            className="select select-bordered w-full md:w-auto"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            disabled={!(teacherLevel || level)}
+          >
+            <option value="" disabled>
+              Select Year
+            </option>
+            {getYearsForLevel(teacherLevel || level).map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="select select-bordered w-full md:w-auto"
+            value={room}
+            onChange={(e) => setRoom(Number(e.target.value))}
+            disabled={!(teacherLevel || level)}
+          >
+            <option value="" disabled>
+              Select Room
+            </option>
+            {getRooms().map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+
+          <button onClick={loadStudents} className="btn btn-primary">
+            Load Students
+          </button>
+        </div>
         </div>
       </div>
 
@@ -164,7 +207,7 @@ export default function AttendancePage() {
           {loading ? (
             <span className="loading loading-spinner" />
           ) : students.length === 0 ? (
-            <p className="opacity-70">No students found for this level</p>
+            <p className="opacity-70">No students found for this selection</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="table">

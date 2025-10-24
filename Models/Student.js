@@ -14,6 +14,7 @@ const StudentSchema = new Schema(
 
         userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
 
+        // branch ถูกเลิกใช้จาก UI แล้ว คง field ไว้เพื่อความเข้ากันได้ย้อนหลัง
         branchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
         departmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
         level: {
@@ -22,6 +23,9 @@ const StudentSchema = new Schema(
             default: DEFAULT_STUDENT_LEVEL,
             index: true,
         },
+        // เพิ่มปี/ห้อง สำหรับกำหนดชั้นเรียนจริง
+        year: { type: Number, min: 1, max: 3, default: 1, index: true },
+        room: { type: Number, min: 1, max: 20, default: 1, index: true },
     },
     schemaOptions
 );
