@@ -96,6 +96,10 @@ export default function ProfilePage() {
                     <InfoRow label="Full Name" value={teacher.name} />
                     <InfoRow label="Employee Code" value={teacher.employeeCode} />
                     <InfoRow
+                        label="Level"
+                        value={teacher.levelLabel || teacher.level || '-'}
+                    />
+                    <InfoRow
                         label="Department"
                         value={teacher.departmentId?.name || '-'}
                     />
@@ -114,6 +118,10 @@ export default function ProfilePage() {
                 >
                     <InfoRow label="Full Name" value={student.name} />
                     <InfoRow label="Student Code" value={student.studentCode} />
+                    <InfoRow
+                        label="Level"
+                        value={student.levelLabel || student.level || '-'}
+                    />
                     <InfoRow
                         label="Branch"
                         value={student.branchId?.name || '-'}

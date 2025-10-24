@@ -1,64 +1,39 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { STUDENT_LEVELS } from '@/lib/constants/student-levels';
 
 async function safeJson(res) {
-  try { return await res.json(); } catch { return {}; }
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
 }
 
+const DEFAULT_LEVEL = STUDENT_LEVELS[0]?.value || '';
+const LEVEL_LABEL_MAP = Object.fromEntries(STUDENT_LEVELS.map((opt) => [opt.value, opt.label]));
+
 export default function StudentsPage() {
-  const [me, setMe] = useState(null);           // { id, role, teacher:{ _id, ... } }
+  const [me, setMe] = useState(null);
   const [teacherId, setTeacherId] = useState('');
+  const [teacherLevel, setTeacherLevel] = useState('');
 
   const [students, setStudents] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ depId: '', branchId: '' });
+  const [filter, setFilter] = useState({ depId: '', level: '' });
 
   const [form, setForm] = useState({
-    studentCode: '', name: '',
-    username: '', password: '',
-    departmentId: '', branchId: '',
+    studentCode: '',
+    name: '',
+    username: '',
+    password: '',
+    departmentId: '',
+    branchId: '',
+    level: DEFAULT_LEVEL,
   });
-
-  // โหลดข้อมูลผู้ใช้ + ตั้ง teacherId
-  async function loadMe() {
-    const res = await fetch('/api/auth/me', { cache: 'no-store' });
-    const data = await safeJson(res);
-    setMe(data?.user || null);
-    // พยายามดึง teacherId จากหลายรูปแบบ (ขึ้นกับ API ของคุณ)
-    const tId =
-      data?.user?.teacher?._id ||
-      data?.user?.teacherId?._id ||
-      data?.user?.teacherId ||
-      (data?.user?.role === 'Teacher' ? data?.user?.id : '');
-
-    if (tId) setTeacherId(String(tId));
-  }
-
-  // โหลด lists (students/departments/branches)
-  async function loadLists() {
-    setLoading(true);
-    const [sRes, dRes, bRes] = await Promise.all([
-      fetch('/api/student',    { cache: 'no-store' }),
-      fetch('/api/department', { cache: 'no-store' }),
-      fetch('/api/branch',     { cache: 'no-store' }),
-    ]);
-
-    const s = await safeJson(sRes);
-    const d = await safeJson(dRes);
-    const b = await safeJson(bRes);
-
-    setStudents(s?.data || s?.students || []);
-    const deps = d?.departments || d?.data || [];
-    const brs  = b?.branches   || b?.data || [];
-    setDepartments(deps);
-    setBranches(brs);
-
-    setForm(f => ({ ...f, departmentId: f.departmentId || deps[0]?._id || '' }));
-    setLoading(false);
-  }
 
   useEffect(() => {
     (async () => {
@@ -67,18 +42,66 @@ export default function StudentsPage() {
     })();
   }, []);
 
+  async function loadMe() {
+    const res = await fetch('/api/auth/me', { cache: 'no-store' });
+    const data = await safeJson(res);
+    const user = data?.user || null;
+    setMe(user);
+
+    const tId =
+      user?.teacher?._id ||
+      user?.teacherId?._id ||
+      user?.teacherId ||
+      (user?.role === 'Teacher' ? user?.id : '');
+
+    if (tId) setTeacherId(String(tId));
+
+    const assignedLevel = user?.teacher?.level || '';
+    if (assignedLevel) {
+      setTeacherLevel(String(assignedLevel));
+      setForm((prev) => ({ ...prev, level: String(assignedLevel) }));
+      setFilter((prev) => ({ ...prev, level: String(assignedLevel) }));
+    }
+  }
+
+  async function loadLists() {
+    setLoading(true);
+    const [sRes, dRes, bRes] = await Promise.all([
+      fetch('/api/student', { cache: 'no-store' }),
+      fetch('/api/department', { cache: 'no-store' }),
+      fetch('/api/branch', { cache: 'no-store' }),
+    ]);
+
+    const s = await safeJson(sRes);
+    const d = await safeJson(dRes);
+    const b = await safeJson(bRes);
+
+    setStudents(s?.data || s?.students || []);
+    const deps = d?.departments || d?.data || [];
+    const brs = b?.branches || b?.data || [];
+    setDepartments(deps);
+    setBranches(brs);
+
+    setForm((prev) => ({
+      ...prev,
+      departmentId: prev.departmentId || deps[0]?._id || '',
+      level: teacherLevel || prev.level || DEFAULT_LEVEL,
+    }));
+    setLoading(false);
+  }
+
   const branchesByDep = useMemo(
-    () => branches.filter(b => String(b?.departmentId?._id || b.departmentId) === String(form.departmentId)),
-    [branches, form.departmentId]
+    () => branches.filter((b) => String(b?.departmentId?._id || b.departmentId) === String(form.departmentId)),
+    [branches, form.departmentId],
   );
 
   const filtered = useMemo(() => {
     let arr = students;
     if (filter.depId) {
-      arr = arr.filter(s => String(s?.departmentId?._id || s.departmentId) === String(filter.depId));
+      arr = arr.filter((s) => String(s?.departmentId?._id || s.departmentId) === String(filter.depId));
     }
-    if (filter.branchId) {
-      arr = arr.filter(s => String(s?.branchId?._id || s.branchId) === String(filter.branchId));
+    if (filter.level) {
+      arr = arr.filter((s) => String(s.level) === String(filter.level));
     }
     return arr;
   }, [students, filter]);
@@ -87,9 +110,11 @@ export default function StudentsPage() {
     e.preventDefault();
 
     if (!teacherId) {
-      alert('ไม่พบข้อมูลครูที่ล็อกอินอยู่ หรือคุณไม่ได้เป็นครู');
+      alert('ไม่พบข้อมูลครูผู้สอน');
       return;
     }
+
+    const targetLevel = teacherLevel || form.level || DEFAULT_LEVEL;
 
     const body = {
       studentCode: form.studentCode,
@@ -98,6 +123,7 @@ export default function StudentsPage() {
       password: form.password,
       departmentId: form.departmentId,
       branchId: form.branchId || undefined,
+      level: targetLevel,
     };
 
     const res = await fetch(`/api/teachers/${teacherId}/students`, {
@@ -107,7 +133,15 @@ export default function StudentsPage() {
     });
 
     if (res.ok) {
-      setForm(f => ({ ...f, studentCode: '', name: '', username: '', password: '', branchId: '' }));
+      setForm((prev) => ({
+        ...prev,
+        studentCode: '',
+        name: '',
+        username: '',
+        password: '',
+        branchId: '',
+        level: teacherLevel || DEFAULT_LEVEL,
+      }));
       await loadLists();
     } else {
       const err = await safeJson(res);
@@ -133,31 +167,74 @@ export default function StudentsPage() {
         <div className="card-body">
           <h2 className="card-title">Create Student</h2>
 
-          {/* แสดงสถานะผู้ใช้ */}
           {me && (
             <div className="mb-2 text-sm opacity-70">
-              Logged in as: <b>{me.username}</b> ({me.role}) {teacherId ? `• teacherId: ${teacherId}` : ''}
+              Logged in as: <b>{me.username}</b> ({me.role})
             </div>
           )}
 
           <form onSubmit={createStudent} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input className="input input-bordered" placeholder="Student Code"
-              value={form.studentCode} onChange={e => setForm({ ...form, studentCode: e.target.value })} required />
-            <input className="input input-bordered" placeholder="Full name"
-              value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-            <input className="input input-bordered" placeholder="Username"
-              value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} required />
-            <input type="password" className="input input-bordered" placeholder="Password"
-              value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
-            <select className="select select-bordered" value={form.departmentId}
-              onChange={e => setForm({ ...form, departmentId: e.target.value, branchId: '' })} required>
+            <input
+              className="input input-bordered"
+              placeholder="Student Code"
+              value={form.studentCode}
+              onChange={(e) => setForm({ ...form, studentCode: e.target.value })}
+              required
+            />
+            <input
+              className="input input-bordered"
+              placeholder="Full name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+            <input
+              className="input input-bordered"
+              placeholder="Username"
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              required
+            />
+            <input
+              type="password"
+              className="input input-bordered"
+              placeholder="Password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+            />
+            <select
+              className="select select-bordered"
+              value={form.departmentId}
+              onChange={(e) => setForm({ ...form, departmentId: e.target.value, branchId: '' })}
+              required
+            >
               <option value="" disabled>Select department</option>
-              {departments.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}
+              {departments.map((d) => (
+                <option key={d._id} value={d._id}>{d.name}</option>
+              ))}
             </select>
-            <select className="select select-bordered" value={form.branchId}
-              onChange={e => setForm({ ...form, branchId: e.target.value })}>
+            <select
+              className="select select-bordered"
+              value={form.level}
+              onChange={(e) => setForm({ ...form, level: e.target.value })}
+              required
+              disabled={Boolean(teacherLevel)}
+            >
+              <option value="" disabled>Select level</option>
+              {STUDENT_LEVELS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <select
+              className="select select-bordered"
+              value={form.branchId}
+              onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+            >
               <option value="">(optional) Branch</option>
-              {branchesByDep.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+              {branchesByDep.map((b) => (
+                <option key={b._id} value={b._id}>{b.name}</option>
+              ))}
             </select>
             <div className="md:col-span-3">
               <button className="btn btn-primary">Create</button>
@@ -171,23 +248,34 @@ export default function StudentsPage() {
           <div className="flex items-center justify-between">
             <h2 className="card-title">Students</h2>
             <div className="flex gap-2">
-              <select className="select select-bordered" value={filter.depId}
-                onChange={e => setFilter(f => ({ ...f, depId: e.target.value, branchId: '' }))}>
+              <select
+                className="select select-bordered"
+                value={filter.depId}
+                onChange={(e) => setFilter((f) => ({ ...f, depId: e.target.value }))}
+              >
                 <option value="">All departments</option>
-                {departments.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}
+                {departments.map((d) => (
+                  <option key={d._id} value={d._id}>{d.name}</option>
+                ))}
               </select>
-              <select className="select select-bordered" value={filter.branchId}
-                onChange={e => setFilter(f => ({ ...f, branchId: e.target.value }))}>
-                <option value="">All branches</option>
-                {branches
-                  .filter(b => !filter.depId || String(b?.departmentId?._id || b.departmentId) === String(filter.depId))
-                  .map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+              <select
+                className="select select-bordered"
+                value={filter.level}
+                onChange={(e) => setFilter((f) => ({ ...f, level: e.target.value }))}
+                disabled={Boolean(teacherLevel)}
+              >
+                <option value="">All levels</option>
+                {STUDENT_LEVELS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
               <button className="btn" onClick={loadLists}>Refresh</button>
             </div>
           </div>
 
-          {loading ? <span className="loading loading-spinner" /> : (
+          {loading ? (
+            <span className="loading loading-spinner" />
+          ) : (
             <div className="overflow-x-auto">
               <table className="table">
                 <thead>
@@ -195,26 +283,30 @@ export default function StudentsPage() {
                     <th>Code</th>
                     <th>Name</th>
                     <th>Username</th>
+                    <th>Level</th>
                     <th>Department</th>
                     <th>Branch</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(s => (
+                  {filtered.map((s) => (
                     <tr key={s._id}>
                       <td>{s.studentCode}</td>
                       <td>{s.name}</td>
                       <td>{s?.userId?.username}</td>
+                      <td>{LEVEL_LABEL_MAP[s.level] || '-'}</td>
                       <td>{s?.departmentId?.name || '-'}</td>
                       <td>{s?.branchId?.name || '-'}</td>
                       <td className="text-right">
-                        <button className="btn btn-error btn-sm" onClick={() => removeStudent(s._id)}>Delete</button>
+                        <button className="btn btn-error btn-sm" onClick={() => removeStudent(s._id)}>
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={6} className="text-center opacity-60">No data</td></tr>
+                    <tr><td colSpan={7} className="text-center opacity-60">No data</td></tr>
                   )}
                 </tbody>
               </table>

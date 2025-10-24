@@ -5,6 +5,7 @@ import mongoConnect from '@/lib/mongodb';
 import { COOKIE } from '@/lib/cookie';
 import { verifyAccessToken } from '@/lib/jwt';
 import { User } from '@/Models';
+import { getStudentLevelLabel } from '@/lib/constants/student-levels';
 
 function formatCourse(data, index = 0) {
     const fallbackTimes = [
@@ -71,6 +72,7 @@ export async function GET(req) {
 
         const departmentName = student?.departmentId?.name ?? 'General Studies';
         const branchName = student?.branchId?.name ?? 'Main Campus';
+        const levelLabel = getStudentLevelLabel(student?.level);
 
         const baseCourses = [
             {
@@ -130,6 +132,8 @@ export async function GET(req) {
                 studentCode: student.studentCode,
                 branch: student.branchId?.name ?? null,
                 department: student.departmentId?.name ?? null,
+                level: student.level ?? null,
+                levelLabel,
             },
             courses: baseCourses,
             recommended,

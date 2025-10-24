@@ -2,6 +2,7 @@ import mongoConnect from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
 import { isValidObjectId } from 'mongoose';
 import { Attendance, Student, Teacher } from '@/Models';
+import { STUDENT_LEVEL_VALUES, getStudentLevelLabel } from '@/lib/constants/student-levels';
 
 function normalizeObjectId(value) {
     if (!value) return null;
@@ -12,7 +13,7 @@ function normalizeObjectId(value) {
     }
 }
 
-async function resolveTeacher(teacherId, fields = 'departmentId userId') {
+async function resolveTeacher(teacherId, fields = 'departmentId level userId') {
     if (!normalizeObjectId(teacherId)) return null;
 
     let teacher = await Teacher.findById(teacherId).select(fields).lean();
@@ -66,6 +67,10 @@ function normalizeStudentDocument(doc) {
 
     if (doc.studentCode) normalized.studentCode = doc.studentCode;
     if (doc.name) normalized.name = doc.name;
+    if (doc.level) {
+        normalized.level = doc.level;
+        normalized.levelLabel = getStudentLevelLabel(doc.level);
+    }
 
     const branch = normalizeRefDocument(doc.branchId);
     if (branch) normalized.branchId = branch;
@@ -115,7 +120,7 @@ export async function GET(request, { params }) {
     const { teacherId } = await params;
 
     try {
-        const teacher = await resolveTeacher(teacherId, 'departmentId');
+        const teacher = await resolveTeacher(teacherId, 'departmentId level');
         if (!teacher) {
             return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
         }
@@ -127,11 +132,28 @@ export async function GET(request, { params }) {
         const studentId = searchParams.get('studentId');
         const status = searchParams.get('status');
         const branchId = searchParams.get('branchId');
+        const levelParam = searchParams.get('level');
         const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
         const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10), 1), 100);
         const sort = searchParams.get('sort') || '-date';
 
         const studentFilter = { departmentId: teacher.departmentId };
+
+        const teacherLevel = teacher.level || null;
+
+        if (levelParam && !STUDENT_LEVEL_VALUES.includes(levelParam)) {
+            return NextResponse.json({ message: 'Invalid level' }, { status: 400 });
+        }
+
+        if (teacherLevel && levelParam && levelParam !== teacherLevel) {
+            return NextResponse.json({ message: 'Teacher is not assigned to this level' }, { status: 403 });
+        }
+
+        if (teacherLevel) {
+            studentFilter.level = teacherLevel;
+        } else if (levelParam) {
+            studentFilter.level = levelParam;
+        }
         if (branchId) {
             const normalizedBranchId = normalizeObjectId(branchId);
             if (!normalizedBranchId) {
@@ -215,7 +237,7 @@ export async function GET(request, { params }) {
                 .limit(limit)
                 .populate({
                     path: 'studentId',
-                    select: 'studentCode name branchId departmentId',
+                    select: 'studentCode name level branchId departmentId',
                     populate: [
                         { path: 'branchId', select: 'name' },
                         { path: 'departmentId', select: 'name' },
@@ -249,7 +271,7 @@ export async function POST(request, { params }) {
     const { teacherId } = await params;
 
     try {
-        const teacher = await resolveTeacher(teacherId, 'departmentId');
+        const teacher = await resolveTeacher(teacherId, 'departmentId level');
         if (!teacher) {
             return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
         }
@@ -281,7 +303,12 @@ export async function POST(request, { params }) {
 
         const normalizedDate = normalizeAttendanceDate(parsedDate);
 
-        const allowedStudents = await Student.find({ departmentId: teacher.departmentId })
+        const studentQuery = { departmentId: teacher.departmentId };
+        if (teacher.level) {
+            studentQuery.level = teacher.level;
+        }
+
+        const allowedStudents = await Student.find(studentQuery)
             .select('_id')
             .lean();
         const allowed = new Set(allowedStudents.map((doc) => String(doc._id)));
@@ -353,7 +380,7 @@ export async function PUT(request, { params }) {
     const { teacherId } = await params;
 
     try {
-        const teacher = await resolveTeacher(teacherId, 'departmentId');
+        const teacher = await resolveTeacher(teacherId, 'departmentId level');
         if (!teacher) {
             return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
         }
@@ -414,7 +441,7 @@ export async function DELETE(request, { params }) {
     const { teacherId } = await params;
 
     try {
-        const teacher = await resolveTeacher(teacherId, 'departmentId');
+        const teacher = await resolveTeacher(teacherId, 'departmentId level');
         if (!teacher) {
             return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
         }
@@ -466,3 +493,9 @@ export async function DELETE(request, { params }) {
         return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
     }
 }
+
+
+
+
+
+

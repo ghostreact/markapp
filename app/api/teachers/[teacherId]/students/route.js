@@ -4,6 +4,7 @@ import mongoConnect from '@/lib/mongodb';
 import { Teacher, Student, User, Branch } from '@/Models';
 import { NextResponse } from 'next/server';
 import { hashPassword } from '@/tools/hashpassword';
+import { STUDENT_LEVEL_VALUES, DEFAULT_STUDENT_LEVEL } from '@/lib/constants/student-levels';
 
 export async function GET(request, { params }) {
   await mongoConnect();
@@ -12,6 +13,7 @@ export async function GET(request, { params }) {
     const { teacherId } = await params;
     const url = new URL(request.url);
     const branchIdParam = url.searchParams.get('branchId');
+    const levelParam = url.searchParams.get('level');
 
     let teacher = null;
 
@@ -31,7 +33,23 @@ export async function GET(request, { params }) {
       return NextResponse.json({ count: 0, data: [] }, { status: 200 });
     }
 
+    const teacherLevel = teacher.level || null;
+
+    if (levelParam && !STUDENT_LEVEL_VALUES.includes(levelParam)) {
+      return NextResponse.json({ message: 'Invalid level' }, { status: 400 });
+    }
+
+    if (teacherLevel && levelParam && levelParam !== teacherLevel) {
+      return NextResponse.json({ message: 'Teacher is not assigned to this level' }, { status: 403 });
+    }
+
     const query = { departmentId: teacher.departmentId };
+
+    if (teacherLevel) {
+      query.level = teacherLevel;
+    } else if (levelParam) {
+      query.level = levelParam;
+    }
 
     if (branchIdParam) {
       if (!isValidObjectId(branchIdParam)) {
@@ -84,7 +102,7 @@ export async function POST(request, { params }) {
     return NextResponse.json({ message: 'Teacher not found' }, { status: 404 });
   }
 
-  const { studentCode, name, username, password, branchId, departmentId } = await request.json();
+  const { studentCode, name, username, password, branchId, departmentId, level } = await request.json();
 
   if (!studentCode || !name || !username || !password) {
     return NextResponse.json(
@@ -96,6 +114,22 @@ export async function POST(request, { params }) {
   const depId = departmentId || teacher.departmentId;
   if (!isValidObjectId(depId)) {
     return NextResponse.json({ message: 'Invalid departmentId' }, { status: 400 });
+  }
+  if (teacher.departmentId && String(depId) !== String(teacher.departmentId)) {
+    return NextResponse.json({ message: 'Teacher cannot assign students to another department' }, { status: 403 });
+  }
+
+  const teacherLevel = teacher.level || null;
+
+  let studentLevel = teacherLevel || DEFAULT_STUDENT_LEVEL;
+  if (level) {
+    if (!STUDENT_LEVEL_VALUES.includes(level)) {
+      return NextResponse.json({ message: 'Invalid level' }, { status: 400 });
+    }
+    if (teacherLevel && level !== teacherLevel) {
+      return NextResponse.json({ message: 'Teacher is not assigned to this level' }, { status: 403 });
+    }
+    studentLevel = level;
   }
 
   let brId = null;
@@ -129,6 +163,7 @@ export async function POST(request, { params }) {
     userId: user._id,
     departmentId: depId,
     branchId: brId,
+    level: studentLevel,
     // ถ้าคุณมีฟิลด์ teacherId ใน Student schema ใส่ตรงนี้ได้ด้วย
     // teacherId: teacher._id,
   });

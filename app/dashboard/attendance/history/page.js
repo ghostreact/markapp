@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { STUDENT_LEVELS } from '@/lib/constants/student-levels';
+
+const LEVEL_LABEL_MAP = Object.fromEntries(STUDENT_LEVELS.map((opt) => [opt.value, opt.label]));
 
 export default function AttendanceHistoryPage() {
-  const [me, setMe] = useState(null);           // { id, role, teacherId, ... }
+  const [me, setMe] = useState(null);
   const [teacherId, setTeacherId] = useState('');
-  const [branches, setBranches] = useState([]);
-  const [branchId, setBranchId] = useState('');
+  const [teacherLevel, setTeacherLevel] = useState('');
+  const [level, setLevel] = useState('');
   const [range, setRange] = useState(() => {
     const d = new Date();
     const to = d.toISOString().split('T')[0];
@@ -14,17 +17,13 @@ export default function AttendanceHistoryPage() {
     const from = d.toISOString().split('T')[0];
     return { from, to };
   });
-  const [rows, setRows] = useState([]);         // [{date, student:{...}, status}]
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [meRes, bRes] = await Promise.all([
-        fetch('/api/auth/me', { cache: 'no-store' }),
-        fetch('/api/branch',   { cache: 'no-store' }),
-      ]);
-      const meData = await meRes.json().catch(()=>({}));
-      const bData  = await bRes.json().catch(()=>({}));
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+      const meData = await meRes.json().catch(() => ({}));
       const user = meData?.user || null;
       setMe(user);
 
@@ -36,38 +35,34 @@ export default function AttendanceHistoryPage() {
 
       if (teacherRef) setTeacherId(String(teacherRef));
 
-      const bs = bData?.branches || bData?.data || [];
-      setBranches(bs);
+      const assignedLevel = user?.teacher?.level || '';
+      if (assignedLevel) {
+        setTeacherLevel(String(assignedLevel));
+        setLevel(String(assignedLevel));
+      }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredBranches = useMemo(() => {
-    const departmentId =
-      me?.teacher?.departmentId?._id ||
+  const departmentName = useMemo(() => {
+    const dep =
       me?.teacher?.departmentId ||
       me?.departmentId ||
-      '';
+      null;
 
-    if (!departmentId) return branches;
-    return branches.filter(
-      b => String(b?.departmentId?._id || b?.departmentId) === String(departmentId)
-    );
-  }, [branches, me]);
-
-  useEffect(() => {
-    if (!branchId && filteredBranches[0]?._id) {
-      setBranchId(filteredBranches[0]._id);
-    }
-  }, [branchId, filteredBranches]);
+    if (!dep) return '';
+    if (typeof dep === 'string') return dep;
+    return dep?.name || '';
+  }, [me]);
 
   async function search() {
     if (!teacherId) return;
+    const targetLevel = teacherLevel || level;
+
     setLoading(true);
     const qs = new URLSearchParams({ from: range.from, to: range.to });
-    if (branchId) qs.set('branchId', branchId);
-    const res = await fetch(`/api/teachers/${teacherId}/attendance?` + qs.toString(), { cache: 'no-store' });
-    const data = await res.json().catch(()=>({}));
+    if (targetLevel) qs.set('level', targetLevel);
+    const res = await fetch(`/api/teachers/${teacherId}/attendance?${qs.toString()}`, { cache: 'no-store' });
+    const data = await res.json().catch(() => ({}));
     setRows(data?.data || []);
     setLoading(false);
   }
@@ -76,15 +71,38 @@ export default function AttendanceHistoryPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="card bg-base-100 shadow">
         <div className="card-body">
-          <h2 className="card-title">Attendance History</h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="card-title">Attendance History</h2>
+            <div className="flex flex-col gap-1 text-sm opacity-70 md:items-end">
+              {departmentName ? <span>Department: {departmentName}</span> : null}
+              {(teacherLevel || level) ? (
+                <span>Level: {LEVEL_LABEL_MAP[teacherLevel || level] || teacherLevel || level}</span>
+              ) : null}
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-4">
-            <input type="date" className="input input-bordered" value={range.from}
-                   onChange={e=>setRange(r=>({...r, from:e.target.value}))}/>
-            <input type="date" className="input input-bordered" value={range.to}
-                   onChange={e=>setRange(r=>({...r, to:e.target.value}))}/>
-            <select className="select select-bordered" value={branchId} onChange={e=>setBranchId(e.target.value)}>
-              <option value="">All branches</option>
-              {filteredBranches.map(b => <option key={b._id} value={b._id}>{b.name}</option>)}
+            <input
+              type="date"
+              className="input input-bordered"
+              value={range.from}
+              onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
+            />
+            <input
+              type="date"
+              className="input input-bordered"
+              value={range.to}
+              onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
+            />
+            <select
+              className="select select-bordered"
+              value={teacherLevel || level}
+              onChange={(e) => setLevel(e.target.value)}
+              disabled={Boolean(teacherLevel)}
+            >
+              <option value="">All levels</option>
+              {STUDENT_LEVELS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
             <button className="btn btn-primary" onClick={search}>Search</button>
           </div>
@@ -94,7 +112,7 @@ export default function AttendanceHistoryPage() {
       <div className="card bg-base-100 shadow">
         <div className="card-body">
           <h3 className="card-title">Results</h3>
-          {loading ? <span className="loading loading-spinner"/> : (
+          {loading ? <span className="loading loading-spinner" /> : (
             <div className="overflow-x-auto">
               <table className="table">
                 <thead>
@@ -102,22 +120,24 @@ export default function AttendanceHistoryPage() {
                     <th>Date</th>
                     <th>Student Code</th>
                     <th>Name</th>
-                    <th>Branch</th>
+                    <th>Level</th>
+                    <th>Department</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i)=>(
+                  {rows.map((r, i) => (
                     <tr key={i}>
-                      <td>{r.date?.slice(0,10)}</td>
+                      <td>{r.date?.slice(0, 10)}</td>
                       <td>{r?.student?.studentCode}</td>
                       <td>{r?.student?.name}</td>
-                      <td>{r?.student?.branchId?.name || '-'}</td>
+                      <td>{r?.student?.levelLabel || '-'}</td>
+                      <td>{r?.student?.departmentId?.name || '-'}</td>
                       <td><span className="badge">{r.status}</span></td>
                     </tr>
                   ))}
-                  {rows.length===0 && (
-                    <tr><td colSpan={5} className="text-center opacity-60">No records</td></tr>
+                  {rows.length === 0 && (
+                    <tr><td colSpan={6} className="text-center opacity-60">No records</td></tr>
                   )}
                 </tbody>
               </table>

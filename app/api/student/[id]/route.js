@@ -2,6 +2,7 @@ import mongoConnect from '@/lib/mongodb';
 import { NextResponse } from 'next/server';
 import { isValidObjectId } from 'mongoose';
 import { Student, User, Attendance } from '@/Models';
+import { STUDENT_LEVEL_VALUES } from '@/lib/constants/student-levels';
 
 export async function DELETE(_req, { params }) {
   await mongoConnect();
@@ -60,9 +61,19 @@ export async function PUT(request, { params }) {
     console.log("Connected to MongoDB");
 
     const { studentID } = await params;
-    const { name,branchId,departmentId } = await request.json();
+    const { name, branchId, departmentId, level } = await request.json();
+
+    const updatePayload = { name, branchId, departmentId };
+
+    if (typeof level !== 'undefined') {
+        if (level && !STUDENT_LEVEL_VALUES.includes(level)) {
+            return NextResponse.json({ message: 'Invalid level' }, { status: 400 });
+        }
+        updatePayload.level = level || null;
+    }
+
     const updated  = await Student.findByIdAndUpdate(
-        studentID, { name,branchId, departmentId },{new : true}).lean();
+        studentID, updatePayload,{new : true}).lean();
 
     if (!updated ) {
         return NextResponse.json({ message: 'Student not found' }, { status: 404 });

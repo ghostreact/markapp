@@ -6,6 +6,7 @@ import { Attendance } from '@/Models';
 import { COOKIE } from '@/lib/cookie';
 import { verifyAccessToken } from '@/lib/jwt';
 import { User } from '@/Models';
+import { getStudentLevelLabel } from '@/lib/constants/student-levels';
 
 const STATUS_OPTIONS = ['Present', 'Late', 'Leave', 'Absent'];
 
@@ -29,6 +30,8 @@ function normalizeStudent(student) {
         id: student._id.toString(),
         studentCode: student.studentCode,
         name: student.name,
+        level: student.level || null,
+        levelLabel: getStudentLevelLabel(student.level),
         branch: normalizeEntity(student.branchId),
         department: normalizeEntity(student.departmentId),
     };

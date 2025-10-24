@@ -129,7 +129,7 @@ export default function MyAttendancePage() {
                 <div className="card bg-base-200">
                     <div className="card-body">
                         <h2 className="card-title">Student Profile</h2>
-                        <div className="grid gap-3 md:grid-cols-4">
+                        <div className="grid gap-3 md:grid-cols-5">
                             <div>
                                 <p className="text-sm opacity-70">Name</p>
                                 <p className="font-medium">{student.name}</p>
@@ -137,6 +137,10 @@ export default function MyAttendancePage() {
                             <div>
                                 <p className="text-sm opacity-70">Student Code</p>
                                 <p className="font-medium">{student.studentCode}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm opacity-70">Level</p>
+                                <p className="font-medium">{student.levelLabel || student.level || '-'}</p>
                             </div>
                             <div>
                                 <p className="text-sm opacity-70">Branch</p>

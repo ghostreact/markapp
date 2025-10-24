@@ -5,6 +5,7 @@ import { COOKIE } from '@/lib/cookie';
 import { verifyAccessToken } from '@/lib/jwt';
 import mongoConnect from '@/lib/mongodb';
 import { User } from '@/Models';
+import { getStudentLevelLabel } from '@/lib/constants/student-levels';
 
 function normalizeRef(ref) {
     if (!ref) return null;
@@ -33,6 +34,11 @@ function normalizeProfile(doc) {
 
     if ('branchId' in next) {
         next.branchId = normalizeRef(next.branchId);
+    }
+
+    if ('level' in next) {
+        next.level = next.level || null;
+        next.levelLabel = getStudentLevelLabel(next.level);
     }
 
     return next;

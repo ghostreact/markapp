@@ -1,4 +1,5 @@
 import { Schema, model, models } from 'mongoose';
+import { DEFAULT_STUDENT_LEVEL, STUDENT_LEVEL_VALUES } from './enums.js';
 
 const schemaOptions = {
     timestamps: true,
@@ -14,6 +15,12 @@ const TeacherSchema = new Schema(
         userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
 
         departmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
+        level: {
+            type: String,
+            enum: STUDENT_LEVEL_VALUES,
+            default: DEFAULT_STUDENT_LEVEL,
+            index: true,
+        },
     },
     schemaOptions
 );
